@@ -11,6 +11,8 @@ const userscriptHeader = `// ==UserScript==
 // @name         苯苯存图
 // @namespace    https://github.com/ibenzene/image-downloader
 // @version      ${pkg.version}
+// @updateURL    https://github.com/iBenzene/ImageDownloader_Plugin/releases/latest/download/benben-image-downloader.meta.js
+// @downloadURL  https://github.com/iBenzene/ImageDownloader_Plugin/releases/latest/download/benben-image-downloader.user.js
 // @description  批量保存来自各种 App 的图片和视频！
 // @author       iBenzene
 // @match        https://www.xiaohongshu.com/*
@@ -58,3 +60,6 @@ await esbuild.build({
 
 const stat = fs.statSync(outfile);
 console.log(`Built ${outfile} (${(stat.size / 1024).toFixed(1)} KB)`);
+const metafile = path.join(distDir, 'benben-image-downloader.meta.js');
+fs.writeFileSync(metafile, userscriptHeader);
+console.log(`Built ${metafile}`);
