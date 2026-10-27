@@ -157,7 +157,7 @@ class DownloadService {
         const settings = storage.getSettings();
 
         if (!isXhsDownloader(options.downloaderType)) {
-            const msg = `首期仅支持小红书下载器（${options.downloaderType}暂不支持在浏览器端下载）`;
+            const msg = `仅支持小红书下载器（${options.downloaderType}暂不支持在浏览器端下载）`;
             logger.warn(msg, { taskId: options.taskId, context: options.url });
             return {
                 ok: false,

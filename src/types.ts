@@ -195,6 +195,7 @@ export type TaskStatus =
 
 /** 统一调度任务模型 */
 export interface TaskItem {
+    identityCheckIncomplete?: boolean;
     id: string;
     type: TaskType;
     title: string;

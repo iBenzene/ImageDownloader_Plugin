@@ -31,13 +31,31 @@ class TaskQueueManager {
     private isProcessingLoop = false;
     private activeAbortControllers = new Map<string, AbortController>();
     private leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    private queueWakeTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
         this.recoverInterruptedTasks();
         if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
             window.addEventListener('beforeunload', () => {
+                this.stop();
                 this.markCurrentTabTasksInterruptedOnUnload();
             });
+        }
+    }
+
+    /** 启动待执行任务调度, 定期接管其他标签页释放租约后的排队任务 */
+    public start(): void {
+        if (this.queueWakeTimer) { return; }
+        this.recoverInterruptedTasks();
+        this.queueWakeTimer = setInterval(() => { void this.processQueue(); }, 2000);
+        this.queueWakeTimer?.unref?.();
+        void this.processQueue();
+    }
+
+    public stop(): void {
+        if (this.queueWakeTimer) {
+            clearInterval(this.queueWakeTimer);
+            this.queueWakeTimer = null;
         }
     }
 
@@ -177,11 +195,12 @@ class TaskQueueManager {
             );
             const settings = storage.getSettings();
             const incompleteWarning = options.identityCheckIncomplete
-                ? '，部分新链接或旧收藏未完成内容去重，仍可能存在重复，可稍后重试补全'
+                ? '，部分新链接未能识别内容，已按链接收藏，可能存在重复'
                 : '';
 
             const now = toIso8601WithMs();
             const saveTask: TaskItem = {
+                identityCheckIncomplete: options.identityCheckIncomplete,
                 id: generateUUID(),
                 type: 'save',
                 title: options.title,
@@ -214,7 +233,7 @@ class TaskQueueManager {
             if (settings.preheatResources && options.urls.length > 0) {
                 this.enqueueTask({
                     type: 'preheat',
-                    title: `预热收藏资源 (${options.urls.length} 个链接)`,
+                    title: `预热收藏资源（${options.urls.length} 个链接）`,
                     urls: options.urls,
                     downloaderType: options.downloaderType,
                     savedLinkId: savedItems.length === 1 ? savedItems[0].id : undefined,

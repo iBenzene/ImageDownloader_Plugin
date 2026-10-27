@@ -14,6 +14,19 @@ export const escapeHtml = (str: string | undefined | null): string => {
         .replace(/'/g, '&#39;');
 };
 
+/** 兼容旧任务文案, 仅调整插件生成的前缀和已废弃提示 */
+export const formatTaskTitle = (title: string): string => title
+    .replace(/^(收藏|下载|下载收藏|预热收藏|重新下载):\s*/, '$1：')
+    .replace(/^(批量收藏|批量下载|预热收藏资源|收藏) \((\d+ 个链接)\)$/, '$1（$2）');
+
+export const formatTaskMessage = (task: TaskItem): string => {
+    if (task.type !== 'save' || task.status !== 'completed') { return task.message || ''; }
+    const warning = task.identityCheckIncomplete
+        ? '，部分新链接未能识别内容，已按链接收藏，可能存在重复'
+        : '';
+    return `已保存 ${task.urls.length} 个链接${warning}`;
+};
+
 /** 根据平台类型匹配专属徽章样式类名 */
 export const getPlatformBadgeClass = (downloaderType: string | undefined | null): string => {
     if (!downloaderType) { return 'bb-badge-platform-default'; }
@@ -51,11 +64,11 @@ export const renderSavedItemBadges = (item: SavedLinkItem): string => {
     } else if (item.preheatState === 'preheated' && hasCachedUrls) {
         const count = item.cachedUrls!.length;
         preheatBadge =
-            `<span class="bb-badge bb-badge-info" title="已预热 ${count} 个资源">预热成功 (${count})</span>`;
+            `<span class="bb-badge bb-badge-info" title="已预热 ${count} 个资源">预热成功（${count}）</span>`;
     } else if (hasCachedUrls) {
         const count = item.cachedUrls!.length;
         preheatBadge =
-            `<span class="bb-badge bb-badge-info" title="云端已有缓存 ${count} 个资源">已有缓存 (${count})</span>`;
+            `<span class="bb-badge bb-badge-info" title="云端已有缓存 ${count} 个资源">已有缓存（${count}）</span>`;
     }
 
     // 下载结果状态徽标
@@ -68,7 +81,7 @@ export const renderSavedItemBadges = (item: SavedLinkItem): string => {
 
     const platformBadge = supported
         ? `<span class="bb-badge ${platformClass}">${shortName}</span>`
-        : `<span class="bb-badge ${platformClass}" title="首期仅支持小红书下载，其他平台记录予以保留">${shortName} (仅查看)</span>`;
+        : `<span class="bb-badge ${platformClass}" title="仅支持小红书下载，其他平台记录仅供查看">${shortName}（仅查看）</span>`;
 
     return `${platformBadge}${syncBadge}${preheatBadge}${downloadBadge}`;
 };

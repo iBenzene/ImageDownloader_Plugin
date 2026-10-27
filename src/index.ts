@@ -20,8 +20,8 @@ const initUserscript = (): void => {
     // 启动页面单页路由监听与笔记上下文识别
     xhsPageAdapter.start();
 
-    // 恢复因刷新或关闭导致中断的任务
-    taskQueue.recoverInterruptedTasks();
+    // 恢复中断状态并启动尚未执行的排队任务
+    taskQueue.start();
 
     // 注册油猴脚本管理器快速菜单项
     const bridge = getGmBridge();

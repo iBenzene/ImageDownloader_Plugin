@@ -21,6 +21,8 @@ import { xhsPageAdapter } from '../xhsPageAdapter';
 import { EntryPositionState, observeEntryPosition, positionEntryBar, resetEntryPosition } from './entryPosition';
 import {
     escapeHtml,
+    formatTaskTitle,
+    formatTaskMessage,
     formatRelativeDate,
     getPlatformBadgeClass,
     renderLogLevelBadge,
@@ -291,7 +293,7 @@ export class BenbenPluginUI {
             : syncStatus.lastError
                 ? '同步失败'
                 : isDirty
-                    ? `待同步 (${syncStatus.dirtySavedCount + syncStatus.dirtyHistoryCount})`
+                    ? `待同步（${syncStatus.dirtySavedCount + syncStatus.dirtyHistoryCount}）`
                     : '已同步';
 
         let contentHtml = '';
@@ -333,7 +335,7 @@ export class BenbenPluginUI {
               data-action="nav-tab" data-tab="settings" title="设置">设置</button>
             <button type="button" class="bb-icon-btn ${logsAct}"
               data-action="nav-tab" data-tab="logs" title="查看日志">日志</button>
-            <button type="button" class="bb-icon-btn" data-action="close-panel" title="关闭面板 (Esc)">✕</button>
+            <button type="button" class="bb-icon-btn" data-action="close-panel" title="关闭面板（Esc）">✕</button>
           </div>
         </div>
 
@@ -422,7 +424,7 @@ export class BenbenPluginUI {
     private renderDuplicatePrompt(): string {
         if (!this.duplicatePrompt) { return ''; }
         const incHtml = this.duplicatePrompt.incomplete
-            ? '<div style="font-size: 11px;">⚠️ 部分链接内容去重解析未完成，仍可能存在重复。</div>'
+            ? '<div style="font-size: 11px;">⚠️ 部分链接未能完成重复检查，可能存在重复。</div>'
             : '';
         return `
       <div class="bb-Banner is-warn">
@@ -465,7 +467,7 @@ export class BenbenPluginUI {
                         const preheatBtn =
                             supported && (!item.cachedUrls || item.cachedUrls.length === 0)
                                 ? '<button type="button" class="bb-btn bb-btn-sm" data-action="preheat-saved-item" ' +
-                                  `data-id="${item.id}" title="提前把媒体缓存到服务端对象存储">预热</button>`
+                                  `data-id="${item.id}" title="提前将图片或视频缓存到服务端。">预热</button>`
                                 : '';
                         const downloadBtn = supported
                             ? '<button type="button" class="bb-btn bb-btn-sm" ' +
@@ -500,7 +502,7 @@ export class BenbenPluginUI {
         return `
       <div class="bb-toolbar">
         <div class="bb-filter-row" style="flex: 1;">
-          <input type="text" class="bb-input" placeholder="搜索收藏链接或 key..."
+          <input type="text" class="bb-input" placeholder="搜索收藏链接或内容标识"
             value="${escapeHtml(this.savedKeyword)}" data-input="saved-search" />
         </div>
         <button type="button" class="bb-btn bb-btn-sm"
@@ -565,14 +567,16 @@ export class BenbenPluginUI {
                         return `
                 <div class="bb-card">
                   <div class="bb-card-top">
-                    <div style="font-weight: 600; font-size: 12.5px;">${escapeHtml(task.title)}</div>
+                    <div style="font-weight: 600; font-size: 12.5px;">${escapeHtml(formatTaskTitle(task.title))}</div>
                     <div>${statusBadge}</div>
                   </div>
                   <div class="bb-badge-row">
                     <span class="bb-badge bb-badge-accent">${typeLabel}</span>
                     <span class="bb-badge ${pfClass}">${escapeHtml(task.downloaderType)}</span>
                   </div>
-                  <div style="font-size: 11.5px; color: var(--bb-text-secondary);">${escapeHtml(task.message)}</div>
+                  <div style="font-size: 11.5px; color: var(--bb-text-secondary);">
+                    ${escapeHtml(formatTaskMessage(task))}
+                  </div>
                   ${subtasksHtml}
                   <div class="bb-card-footer">
                     <span class="bb-card-time">${formatRelativeDate(task.createdAt)}</span>
@@ -651,7 +655,7 @@ export class BenbenPluginUI {
 
         return `
       <div class="bb-toolbar">
-        <input type="text" class="bb-input" style="flex: 1;" placeholder="搜索历史链接..."
+        <input type="text" class="bb-input" style="flex: 1;" placeholder="搜索历史记录"
           value="${escapeHtml(this.historyKeyword)}" data-input="history-search" />
         <button type="button" class="bb-btn bb-btn-danger bb-btn-sm"
           data-action="clear-all-history" ${all.length === 0 ? 'disabled' : ''}>清空历史</button>
@@ -719,7 +723,7 @@ export class BenbenPluginUI {
         <div class="bb-switch-row">
           <div>
             <div class="bb-form-label">服务端代理</div>
-            <div class="bb-form-desc">开启后，由服务端代为下载图片和视频。</div>
+            <div class="bb-form-desc">开启后，由服务端代为下载图片或视频。</div>
           </div>
           <input type="checkbox" name="serverSideProxy" ${settings.serverSideProxy ? 'checked' : ''} />
         </div>
@@ -727,7 +731,7 @@ export class BenbenPluginUI {
         <div class="bb-switch-row">
           <div>
             <div class="bb-form-label">资源预热</div>
-            <div class="bb-form-desc">开启后，收藏链接时会自动将图片和视频缓存到服务端。</div>
+            <div class="bb-form-desc">开启后，收藏链接时会自动将图片或视频缓存到服务端。</div>
           </div>
           <input type="checkbox" name="preheatResources" ${settings.preheatResources ? 'checked' : ''} />
         </div>
@@ -845,7 +849,7 @@ export class BenbenPluginUI {
             }
             taskQueue.enqueueTask({
                 type: 'download',
-                title: `下载: ${ctx.title}`,
+                title: `下载：${ctx.title}`,
                 urls: [ctx.url],
                 downloaderType: downloader,
             });
@@ -861,7 +865,7 @@ export class BenbenPluginUI {
                 alert('无法确认当前笔记类型，请先选择「图片 / 视频 / 实况」');
                 return;
             }
-            await this.handleSaveFlow([ctx.url], downloader, `收藏: ${ctx.title}`);
+            await this.handleSaveFlow([ctx.url], downloader, `收藏：${ctx.title}`);
             return;
         }
 
@@ -878,12 +882,12 @@ export class BenbenPluginUI {
                 return;
             }
             if (action === 'submit-batch-save') {
-                await this.handleSaveFlow(extraction.urls, downloader, `批量收藏 (${extraction.urls.length} 个链接)`);
+                await this.handleSaveFlow(extraction.urls, downloader, `批量收藏（${extraction.urls.length} 个链接）`);
                 if (textarea) { textarea.value = ''; }
             } else {
                 taskQueue.enqueueTask({
                     type: 'download',
-                    title: `批量下载 (${extraction.urls.length} 个链接)`,
+                    title: `批量下载（${extraction.urls.length} 个链接）`,
                     urls: extraction.urls,
                     downloaderType: downloader,
                 });
@@ -898,7 +902,7 @@ export class BenbenPluginUI {
             if (!item) { return; }
             taskQueue.enqueueTask({
                 type: 'download',
-                title: `下载收藏: ${item.url.slice(0, 32)}...`,
+                title: `下载收藏：${item.url.slice(0, 32)}...`,
                 urls: [item.url],
                 downloaderType: item.downloaderType,
                 savedLinkId: item.id,
@@ -912,7 +916,7 @@ export class BenbenPluginUI {
             if (!item) { return; }
             taskQueue.enqueueTask({
                 type: 'preheat',
-                title: `预热收藏: ${item.url.slice(0, 32)}...`,
+                title: `预热收藏：${item.url.slice(0, 32)}...`,
                 urls: [item.url],
                 downloaderType: item.downloaderType,
                 savedLinkId: item.id,
@@ -970,7 +974,7 @@ export class BenbenPluginUI {
             for (const item of itemsToDownload) {
                 taskQueue.enqueueTask({
                     type: 'download',
-                    title: `下载收藏: ${item.url.slice(0, 24)}...`,
+                    title: `下载收藏：${item.url.slice(0, 24)}...`,
                     urls: [item.url],
                     downloaderType: item.downloaderType,
                     savedLinkId: item.id,
@@ -1014,7 +1018,7 @@ export class BenbenPluginUI {
             if (url && dt) {
                 taskQueue.enqueueTask({
                     type: 'download',
-                    title: `重新下载: ${url.slice(0, 24)}...`,
+                    title: `重新下载：${url.slice(0, 24)}...`,
                     urls: [url],
                     downloaderType: dt,
                 });
@@ -1125,7 +1129,7 @@ export class BenbenPluginUI {
                 const { urls, downloader, resolvedKeys, incomplete } = this.duplicatePrompt;
                 taskQueue.enqueueTask({
                     type: 'save',
-                    title: `收藏 (${urls.length} 个链接)`,
+                    title: `收藏（${urls.length} 个链接）`,
                     urls,
                     downloaderType: downloader,
                     resolvedContentKeys: resolvedKeys,
@@ -1142,7 +1146,7 @@ export class BenbenPluginUI {
         const prep = await savedLinksManager.prepareSaveLinks(urls, downloader);
         if (prep.hasDuplicate) {
             const duplicateLines = prep.duplicates
-                .map(d => `• ${d.url} (${d.reason.includes('key') ? '相同笔记内容' : '相同链接'})`)
+                .map(d => `• ${d.url}（${d.reason.includes('key') ? '相同笔记内容' : '相同链接'}）`)
                 .join('\n');
             this.duplicatePrompt = {
                 urls,

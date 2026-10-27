@@ -67,12 +67,18 @@ export const fromSavedLinkAPI = (api: SavedLinkItemAPI, existingLocal?: SavedLin
     const status: SavedLinkStatus =
         api.status === 'success' || api.status === 'failure' ? api.status : 'none';
     const hasRemoteCache = Array.isArray(api.cached_urls) && api.cached_urls.length > 0;
+    const preserveLocalAttempt = !hasRemoteCache && !api.is_deleted && !existingLocal?.isDeleted &&
+        existingLocal?.url === api.url && existingLocal.downloaderType === api.downloader &&
+        (existingLocal.preheatState === 'preheating' || existingLocal.preheatState === 'failed');
 
     let preheatState: PreheatState = 'unpreheated';
     if (hasRemoteCache) {
         // 本机成功预热且缓存匹配则保留预热成功状态, 否则标记为云端同步缓存
         preheatState =
             existingLocal?.preheatState === 'preheated' ? 'preheated' : 'cached_remote';
+    }
+    if (preserveLocalAttempt) {
+        preheatState = existingLocal!.preheatState!;
     }
 
     return {
@@ -89,7 +95,7 @@ export const fromSavedLinkAPI = (api: SavedLinkItemAPI, existingLocal?: SavedLin
         cachedUrls: hasRemoteCache ? api.cached_urls : null,
         metadata: api.metadata ?? null,
         preheatState,
-        preheatError: null,
+        preheatError: preserveLocalAttempt ? existingLocal!.preheatError : null,
     };
 };
 
@@ -131,30 +137,9 @@ class SavedLinksManager {
         return this.getAllItems().filter(item => item.isDirty);
     }
 
-    /** 补充或更新指定链接的内容去重标识 */
-    public updateContentKey(url: string, key: string): boolean {
-        const items = this.getAllItems();
-        let changed = false;
-        const now = toIso8601WithMs();
-
-        for (const item of items) {
-            if (item.url === url && item.contentKey !== key) {
-                item.contentKey = key;
-                item.updatedAt = now;
-                item.isDirty = true;
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            this.saveItems(items);
-        }
-        return changed;
-    }
-
     /**
      * 收藏入库前的准备工作与全面去重探测
-     * 涵盖本地已有收藏对比, 输入列表内部查重, 以及顺带尝试补全历史缺失标识
+     * 涵盖本地已有收藏对比, 输入列表内部查重, 仅解析本次输入链接的内容标识
      */
     public async prepareSaveLinks(
         urls: string[],
@@ -168,14 +153,8 @@ class SavedLinksManager {
         const visibleItems = this.getVisibleItems();
 
         if (platform) {
-            const oldItemsMissingKey = visibleItems.filter(
-                item => !item.contentKey && getIdentityPlatform(item.downloaderType) === platform
-            );
-
-            const candidates: Array<{ url: string; downloader: AllDownloaderType }> = [
-                ...urls.map(u => ({ url: u, downloader: downloaderType })),
-                ...oldItemsMissingKey.map(item => ({ url: item.url, downloader: item.downloaderType })),
-            ];
+            // 旧收藏缺少标识时只按链接查重, 不解析或修改历史记录
+            const candidates = urls.map(url => ({ url, downloader: downloaderType }));
 
             const deadline = Date.now() + IDENTITY_RESOLVE_DEADLINE_MS;
             const visited = new Set<string>();
@@ -193,7 +172,6 @@ class SavedLinksManager {
 
                 // 优先检查缓存
                 if (resolvedCache[candidate.url]) {
-                    this.updateContentKey(candidate.url, resolvedCache[candidate.url]);
                     continue;
                 }
 
@@ -203,7 +181,6 @@ class SavedLinksManager {
                 if (Date.now() >= deadline || options?.signal?.aborted) {
                     if (localKey) {
                         resolvedCache[candidate.url] = localKey;
-                        this.updateContentKey(candidate.url, localKey);
                     }
                     identityCheckIncomplete = true;
                     break;
@@ -222,7 +199,6 @@ class SavedLinksManager {
                 if (!hasServerConfig) {
                     if (localKey) {
                         resolvedCache[candidate.url] = localKey;
-                        this.updateContentKey(candidate.url, localKey);
                     } else {
                         identityCheckIncomplete = true;
                     }
@@ -239,7 +215,6 @@ class SavedLinksManager {
                     const finalKey = remoteKey || localKey;
                     if (finalKey) {
                         resolvedCache[candidate.url] = finalKey;
-                        this.updateContentKey(candidate.url, finalKey);
                     } else {
                         identityCheckIncomplete = true;
                         this.identityRetryAfter.set(retryKey, Date.now() + IDENTITY_RETRY_COOLDOWN_MS);
@@ -247,7 +222,6 @@ class SavedLinksManager {
                 } catch {
                     if (localKey) {
                         resolvedCache[candidate.url] = localKey;
-                        this.updateContentKey(candidate.url, localKey);
                     }
                     identityCheckIncomplete = true;
                     this.identityRetryAfter.set(retryKey, Date.now() + IDENTITY_RETRY_COOLDOWN_MS);

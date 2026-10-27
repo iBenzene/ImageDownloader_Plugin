@@ -37,6 +37,8 @@ test('Settings keep drafts during diagnostics and refresh, and save without navi
         edit('serverToken', 'draft-token');
         input('serverSideProxy').checked = true;
         input('serverSideProxy').dispatchEvent(new browser.Event('change', { bubbles: true }));
+        input('preheatResources').checked = true;
+        input('preheatResources').dispatchEvent(new browser.Event('change', { bubbles: true }));
         storage.emitChange('logs');
         assert.equal(input('serverUrl').value, 'https://draft.example/api');
         assert.equal(input('serverToken').value, 'draft-token');
@@ -61,6 +63,7 @@ test('Settings keep drafts during diagnostics and refresh, and save without navi
         assert.equal(storage.getSettings().serverUrl, 'https://draft.example/api');
         assert.equal(storage.getSettings().serverToken, 'draft-token');
         assert.equal(storage.getSettings().serverSideProxy, true);
+        assert.equal(storage.getSettings().preheatResources, true);
         assert.match(root.textContent!, /设置已保存/);
         ui.closePanel();
         ui.openPanel('settings');

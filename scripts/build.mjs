@@ -13,7 +13,7 @@ const userscriptHeader = `// ==UserScript==
 // @version      ${pkg.version}
 // @updateURL    https://github.com/iBenzene/ImageDownloader_Plugin/releases/latest/download/benben-image-downloader.meta.js
 // @downloadURL  https://github.com/iBenzene/ImageDownloader_Plugin/releases/latest/download/benben-image-downloader.user.js
-// @description  批量保存来自各种 App 的图片和视频！
+// @description  批量保存来自各种 App 的图片或视频！
 // @author       iBenzene
 // @match        https://www.xiaohongshu.com/*
 // @match        https://xiaohongshu.com/*
