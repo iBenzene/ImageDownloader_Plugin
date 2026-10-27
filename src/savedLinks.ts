@@ -299,9 +299,9 @@ class SavedLinksManager {
 
     /**
      * 新增或恢复收藏记录列表
-     * 相同链接再次收藏时复用原有唯一编号
-     * 恢复已软删除记录时清空过期缓存
-     * 同一链接若存在多个历史记录副本则将其余副本做软删除收敛
+     * 相同链接或相同内容标识再次收藏时复用原有唯一编号并更新为最新链接
+     * 恢复已软删除记录或切换下载器类型时清空过期缓存, 否则保留已有预热缓存
+     * 同一链接或同一内容标识若存在多个历史记录副本则将其余副本做软删除收敛
      */
     public addLinks(
         urls: string[],
@@ -323,10 +323,10 @@ class SavedLinksManager {
                     ? contentKeys[url] || extractLocalContentKey(url, downloaderType) || undefined
                     : undefined;
 
-            // 查找所有匹配当前链接的已有记录 (涵盖有效记录与已软删除记录)
+            // 查找所有匹配当前链接或相同内容标识的已有记录 (涵盖有效记录与已软删除记录)
             const matchingIndices: number[] = [];
             items.forEach((item, idx) => {
-                if (item.url === url) {
+                if (item.url === url || (resolvedKey && item.contentKey === resolvedKey)) {
                     matchingIndices.push(idx);
                 }
             });
@@ -336,37 +336,45 @@ class SavedLinksManager {
                 const activeIdx = matchingIndices.find(idx => !items[idx].isDeleted);
                 const winnerIndex = activeIdx !== undefined ? activeIdx : matchingIndices[0];
                 const winner: SavedLinkItem = { ...items[winnerIndex] };
+                const wasDeleted = winner.isDeleted;
+                const downloaderChanged = winner.downloaderType !== downloaderType;
 
-                if (winner.isDeleted) {
+                if (wasDeleted) {
                     winner.isDeleted = false;
                     winner.cachedUrls = null;
                     winner.preheatState = 'unpreheated';
                     winner.preheatError = null;
                 }
 
-                winner.contentKey = resolvedKey ?? winner.contentKey ?? null;
-                winner.timestamp = now;
-                winner.updatedAt = now;
-                winner.isDirty = true;
-
-                if (winner.downloaderType !== downloaderType) {
+                if (downloaderChanged) {
                     logger.info(`恢复或更新收藏链接下载器类型为 ${downloaderType}`, {
                         context: url,
                     });
                     winner.downloaderType = downloaderType;
-                    winner.status = 'none';
                     winner.cachedUrls = null;
+                    winner.preheatState = 'unpreheated';
+                    winner.preheatError = null;
+                } else if (!wasDeleted && (!winner.cachedUrls || winner.cachedUrls.length === 0)) {
                     winner.preheatState = 'unpreheated';
                     winner.preheatError = null;
                 }
 
-                // 将其余重复项置为软删除以保证同一链接唯一有效
+                winner.url = url;
+                winner.contentKey = resolvedKey ?? winner.contentKey ?? null;
+                winner.status = 'none';
+                winner.timestamp = now;
+                winner.updatedAt = now;
+                winner.isDirty = true;
+
+                // 将其余重复项置为软删除以保证同一链接或同一内容唯一有效
                 for (const idx of matchingIndices) {
                     if (idx !== winnerIndex && !items[idx].isDeleted) {
                         items[idx] = {
                             ...items[idx],
                             isDeleted: true,
                             cachedUrls: null,
+                            preheatState: 'unpreheated',
+                            preheatError: null,
                             updatedAt: now,
                             isDirty: true,
                         };
@@ -376,6 +384,10 @@ class SavedLinksManager {
                 // 调整至列表前列
                 items.splice(winnerIndex, 1);
                 items.unshift(winner);
+                const existingTouchedIdx = touchedItems.findIndex(item => isSameId(item.id, winner.id));
+                if (existingTouchedIdx !== -1) {
+                    touchedItems.splice(existingTouchedIdx, 1);
+                }
                 touchedItems.push(winner);
             } else {
                 const newItem: SavedLinkItem = {

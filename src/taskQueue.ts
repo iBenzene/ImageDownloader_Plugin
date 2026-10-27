@@ -230,11 +230,12 @@ class TaskQueueManager {
             });
 
             // 若开启了自动预热选项且存在链接则追加预热任务
-            if (settings.preheatResources && options.urls.length > 0) {
+            if (settings.preheatResources && savedItems.length > 0) {
+                const preheatUrls = savedItems.map(i => i.url);
                 this.enqueueTask({
                     type: 'preheat',
-                    title: `预热收藏资源（${options.urls.length} 个链接）`,
-                    urls: options.urls,
+                    title: `预热收藏资源（${preheatUrls.length} 个链接）`,
+                    urls: preheatUrls,
                     downloaderType: options.downloaderType,
                     savedLinkId: savedItems.length === 1 ? savedItems[0].id : undefined,
                 });

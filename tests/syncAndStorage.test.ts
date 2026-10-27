@@ -44,10 +44,37 @@ test('180-second buffered since calculation', () => {
 
 test('SavedLinks duplicate handling and restoring deleted links', () => {
     storage.saveSettings({ serverUrl: 'https://server.com/api', serverToken: 'token' });
-    const url = 'https://www.xiaohongshu.com/explore/222222222222222222222222';
+    const urlA = 'https://www.xiaohongshu.com/explore/222222222222222222222222?xsec_token=old';
+    const urlB = 'https://www.xiaohongshu.com/explore/222222222222222222222222?xsec_token=new';
 
-    const [item1] = savedLinksManager.addLinks([url], '小红书图片下载器');
+    const [item1] = savedLinksManager.addLinks([urlA], '小红书图片下载器');
     assert.ok(item1);
+    savedLinksManager.updateStatus(item1.id, 'success');
+    savedLinksManager.updatePreheatResult(item1.id, {
+        state: 'preheated',
+        cachedUrls: ['https://s3.example.com/cache/xhs/cached.jpg'],
+    });
+
+    // Re-add same contentKey with a new URL and same downloaderType:
+    // Should reuse ID, update URL, reset status to 'none', and preserve cachedUrls
+    const [reusedSameType] = savedLinksManager.addLinks([urlB], '小红书图片下载器');
+    assert.equal(savedLinksManager.getVisibleItems().length, 1);
+    assert.equal(reusedSameType.id, item1.id, 'Should reuse existing record ID for same contentKey');
+    assert.equal(reusedSameType.url, urlB, 'Should update URL to the latest saved URL');
+    assert.equal(reusedSameType.status, 'none', 'Should reset status to none on re-save');
+    assert.deepEqual(
+        reusedSameType.cachedUrls,
+        ['https://s3.example.com/cache/xhs/cached.jpg'],
+        'Should preserve existing cachedUrls when downloaderType is unchanged'
+    );
+    assert.equal(reusedSameType.preheatState, 'preheated');
+
+    // Re-add with a different downloaderType: should clear cachedUrls
+    const [reusedDiffType] = savedLinksManager.addLinks([urlB], '小红书视频下载器');
+    assert.equal(reusedDiffType.id, item1.id);
+    assert.equal(reusedDiffType.downloaderType, '小红书视频下载器');
+    assert.equal(reusedDiffType.cachedUrls, null, 'Should clear cachedUrls when downloaderType changes');
+    assert.equal(reusedDiffType.preheatState, 'unpreheated');
 
     // Soft delete item
     savedLinksManager.deleteItem(item1.id);
@@ -55,12 +82,13 @@ test('SavedLinks duplicate handling and restoring deleted links', () => {
     assert.equal(savedLinksManager.getAllItems().length, 1);
     assert.ok(savedLinksManager.getAllItems()[0].isDeleted);
 
-    // Re-add same URL: should reuse ID and restore
-    const [restored] = savedLinksManager.addLinks([url], '小红书视频下载器');
+    // Re-add via original URL (same contentKey): should reuse ID and restore
+    const [restored] = savedLinksManager.addLinks([urlA], '小红书视频下载器');
     assert.equal(restored.id, item1.id, 'Should reuse existing record ID');
     assert.ok(!restored.isDeleted, 'Should be active again');
+    assert.equal(restored.url, urlA, 'Should update URL to latest saved URL');
     assert.equal(restored.downloaderType, '小红书视频下载器');
-    assert.equal(restored.status, 'none', 'Status should be reset when downloader type changes');
+    assert.equal(restored.status, 'none', 'Status should be reset when restored');
 });
 
 test('Merge remote records preserves local content_key when remote lacks it', () => {

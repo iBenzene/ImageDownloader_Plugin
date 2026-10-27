@@ -27,9 +27,17 @@ test('Legacy records stay untouched while new links receive identity and dedupli
     assert.equal(prep.identityCheckIncomplete, false);
     assert.deepEqual(storage.getSavedLinks(), before);
     savedLinksManager.addLinks([url], downloader, prep.resolvedContentKeys);
-    assert.equal(savedLinksManager.getActiveItemByUrl(url)?.contentKey, 'xhs:same-note');
-    const duplicate = await savedLinksManager.prepareSaveLinks(['https://xhslink.cn/another-share'], downloader);
+    const firstSaved = savedLinksManager.getActiveItemByUrl(url);
+    assert.equal(firstSaved?.contentKey, 'xhs:same-note');
+    const anotherUrl = 'https://xhslink.cn/another-share';
+    const duplicate = await savedLinksManager.prepareSaveLinks([anotherUrl], downloader);
     assert.equal(duplicate.hasDuplicate, true);
+    // Insisting on saving duplicate content with a new shortlink reuses the item and updates its URL
+    const [reused] = savedLinksManager.addLinks([anotherUrl], downloader, duplicate.resolvedContentKeys);
+    assert.equal(reused.id, firstSaved?.id);
+    assert.equal(reused.url, anotherUrl);
+    assert.equal(savedLinksManager.getActiveItemByUrl(url), undefined);
+    assert.equal(savedLinksManager.getActiveItemByUrl(anotherUrl)?.id, firstSaved?.id);
     assert.equal((await savedLinksManager.prepareSaveLinks([oldUrls[0]], downloader)).hasDuplicate, true);
     assert.deepEqual(storage.getSavedLinks().filter(item => oldUrls.includes(item.url)), before);
 
