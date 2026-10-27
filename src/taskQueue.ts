@@ -8,7 +8,7 @@ import { savedLinksManager } from './savedLinks';
 import { CURRENT_TAB_ID, storage } from './storage';
 import { syncCoordinator } from './sync';
 import { AllDownloaderType, TaskItem, TaskStatus, TaskType } from './types';
-import { generateUUID, isSameId, toIso8601WithMs } from './utils';
+import { generateUUID, isSameId, parseTimestampMs, toIso8601WithMs } from './utils';
 
 export interface EnqueueTaskOptions {
     type: TaskType;
@@ -157,6 +157,33 @@ class TaskQueueManager {
                 (!type || t.type === type) &&
                 t.urls.includes(url)
         );
+    }
+
+    /**
+     * 查询指定链接最近一次关联的任务记录
+     * 优先返回待执行或运行中的任务, 其次返回最近更新的已完成/失败/取消/中断任务
+     */
+    public getLatestTaskForUrl(url: string, type?: TaskType): TaskItem | undefined {
+        const active = this.getActiveTaskForUrl(url, type);
+        if (active) {
+            return active;
+        }
+        const candidates = storage.getTasks().filter(
+            t => (!type || t.type === type) && t.urls.includes(url)
+        );
+        if (candidates.length === 0) {
+            return undefined;
+        }
+        let latest = candidates[0];
+        let latestMs = parseTimestampMs(latest.updatedAt || latest.createdAt);
+        for (let i = 1; i < candidates.length; i++) {
+            const ms = parseTimestampMs(candidates[i].updatedAt || candidates[i].createdAt);
+            if (ms > latestMs) {
+                latest = candidates[i];
+                latestMs = ms;
+            }
+        }
+        return latest;
     }
 
     /**

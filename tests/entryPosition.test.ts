@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Window, HTMLElement as HappyHTMLElement } from 'happy-dom';
+import { Window, HTMLElement as HappyHTMLElement, HTMLButtonElement } from 'happy-dom';
+import { getGmBridge, resetGmBridge } from '../src/gmAdapter';
+import { storage } from '../src/storage';
 import {
     EntryPositionState,
     observeEntryPosition,
     positionEntryBar,
     resetEntryPosition,
 } from '../src/ui/entryPosition';
+import { BenbenPluginUI } from '../src/ui/panel';
+import { xhsPageAdapter } from '../src/xhsPageAdapter';
 
 test('Entry follows visible note media and stays inside a narrow viewport', () => {
     const browser = new Window({ width: 1440, height: 900 });
@@ -109,4 +113,114 @@ test('Dragging survives bar replacement, stays on screen and resets for each ope
     resetEntryPosition(state, 'note-b');
     assert.equal(state.manual, undefined);
     await browser.happyDOM.abort();
+});
+
+test('Entry bar status transitions from detection reason to progress and final result', async () => {
+    const noteId = '66abcdef1234567890abcdef';
+    const noteUrl = `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=tok`;
+    const browser = new Window({ url: noteUrl, width: 1440, height: 900 });
+    const original = new Map<string, PropertyDescriptor | undefined>();
+    for (const key of ['window', 'document']) {
+        original.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+        Object.defineProperty(globalThis, key, {
+            configurable: true, writable: true, value: (browser as unknown as Record<string, unknown>)[key],
+        });
+    }
+    try {
+        resetGmBridge();
+        storage.saveSettings({
+            serverUrl: 'https://entry-status.example/api',
+            serverToken: 'tok',
+            preheatResources: true,
+        });
+        (browser as unknown as { __INITIAL_STATE__?: unknown }).__INITIAL_STATE__ = {
+            note: {
+                noteDetailMap: {
+                    [noteId]: {
+                        note: {
+                            noteId,
+                            title: '实况测试笔记',
+                            type: 'normal',
+                            imageList: [{ livePhoto: true }],
+                        },
+                    },
+                },
+            },
+        };
+        browser.document.body.innerHTML = '<div id="noteContainer"><div class="media-container"></div></div>';
+        xhsPageAdapter.evaluateCurrentPage();
+
+        let releaseExtract!: () => void;
+        let extractPending = new Promise<void>(resolve => { releaseExtract = resolve; });
+        getGmBridge().httpRequest = async ({ url }) => {
+            if (url.includes('/extract')) {
+                await extractPending;
+                return {
+                    status: 200,
+                    statusText: 'OK',
+                    headers: '',
+                    responseText: JSON.stringify({
+                        mediaUrls: [{
+                            cover: 'https://storage.example/cache/xhs/cover.jpg',
+                            video: 'https://storage.example/cache/xhs/video.mp4',
+                        }],
+                    }),
+                };
+            }
+            return {
+                status: 200,
+                statusText: 'OK',
+                headers: '',
+                responseText: JSON.stringify({ records: [], syncedAt: new Date().toISOString() }),
+            };
+        };
+        getGmBridge().downloadFile = async () => ({
+            confirmedByManager: true,
+            bytesTransferred: 1024,
+        });
+
+        const ui = new BenbenPluginUI();
+        ui.init();
+        const root = browser.document.getElementById('benben-xhs-host')!.shadowRoot!;
+        const statusEl = () => root.querySelector<HappyHTMLElement>('.bb-entry-status')!;
+
+        // 1. 初始识别态
+        assert.equal(statusEl().textContent?.trim(), '已识别包含实况图片');
+        assert.equal(statusEl().classList.contains('is-ok'), false);
+
+        // 2. 点击收藏触发预热进度 -> 预热结果
+        root.querySelector<HTMLButtonElement>('[data-action="entry-save"]')!.click();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.match(statusEl().textContent || '', /预热中|正在执行|等待执行/);
+
+        releaseExtract();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.match(statusEl().textContent || '', /预热成功，共缓存 1 个资源/);
+        assert.equal(statusEl().classList.contains('is-ok'), true);
+
+        // 3. 点击下载（强制无缓存实时解析路径）验证下载进度 -> 下载结果
+        storage.setSavedLinks([]);
+        extractPending = new Promise<void>(resolve => { releaseExtract = resolve; });
+        root.querySelector<HTMLButtonElement>('[data-action="entry-download"]')!.click();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.match(statusEl().textContent || '', /正在解析媒体链接|下载中|正在执行/);
+
+        releaseExtract();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.match(statusEl().textContent || '', /下载完成，共保存 1 个图片或视频/);
+        assert.equal(statusEl().classList.contains('is-ok'), true);
+    } finally {
+        xhsPageAdapter.stop();
+        await browser.happyDOM.close();
+        for (const [key, descriptor] of original) {
+            if (descriptor) {
+                Object.defineProperty(globalThis, key, descriptor);
+            } else {
+                Reflect.deleteProperty(globalThis, key);
+            }
+        }
+        resetGmBridge();
+    }
 });

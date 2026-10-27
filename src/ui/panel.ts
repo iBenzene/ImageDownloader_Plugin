@@ -55,6 +55,7 @@ export class BenbenPluginUI {
     private settingsDraft: PluginSettings | null = null;
     private settingsSaved = false;
     private entryPosition: EntryPositionState = {};
+    private preparingSaveUrls = new Set<string>();
     private confirmationModal: {
         title: string;
         message: string;
@@ -251,8 +252,34 @@ export class BenbenPluginUI {
         const secondaryAction = isPrimaryDownload ? 'entry-save' : 'entry-download';
 
         const activeTask = taskQueue.getActiveTaskForUrl(ctx.url);
-        const taskRunning = Boolean(activeTask);
-        const statusMsg = activeTask ? activeTask.message : ctx.detectionReason;
+        const latestTask = activeTask ?? taskQueue.getLatestTaskForUrl(ctx.url);
+        const isPreparingSave = this.preparingSaveUrls.has(ctx.url);
+        const hasPendingDuplicate = Boolean(this.duplicatePrompt?.urls.includes(ctx.url));
+        const taskRunning = Boolean(activeTask) || isPreparingSave;
+
+        let statusMsg = ctx.detectionReason;
+        let statusClass = needsChoice ? 'is-warn' : '';
+        if (isPreparingSave) {
+            statusMsg = '正在收藏...';
+            statusClass = '';
+        } else if (activeTask) {
+            statusMsg = activeTask.message;
+            statusClass = '';
+        } else if (hasPendingDuplicate) {
+            statusMsg = '发现重复收藏，请确认';
+            statusClass = 'is-warn';
+        } else if (latestTask) {
+            statusMsg = formatTaskMessage(latestTask) || ctx.detectionReason;
+            if (latestTask.status === 'completed') {
+                statusClass = latestTask.identityCheckIncomplete ? 'is-warn' : 'is-ok';
+            } else if (latestTask.status === 'failed') {
+                statusClass = 'is-error';
+            } else if (latestTask.status === 'interrupted') {
+                statusClass = 'is-warn';
+            } else {
+                statusClass = '';
+            }
+        }
         const disabledAttr = taskRunning ? 'disabled' : '';
 
         return `
@@ -274,7 +301,7 @@ export class BenbenPluginUI {
         <button type="button" class="bb-btn bb-btn-sm" data-action="open-panel" title="打开客户端面板">
           更多
         </button>
-        <span class="bb-entry-status ${needsChoice ? 'is-warn' : ''}" title="${escapeHtml(statusMsg)}">
+        <span class="bb-entry-status ${statusClass}" title="${escapeHtml(statusMsg)}">
           ${escapeHtml(statusMsg)}
         </span>
       </div>
@@ -1143,7 +1170,18 @@ export class BenbenPluginUI {
     }
 
     private async handleSaveFlow(urls: string[], downloader: XhsDownloaderType, title: string): Promise<void> {
-        const prep = await savedLinksManager.prepareSaveLinks(urls, downloader);
+        for (const u of urls) {
+            this.preparingSaveUrls.add(u);
+        }
+        this.render();
+        let prep: Awaited<ReturnType<typeof savedLinksManager.prepareSaveLinks>>;
+        try {
+            prep = await savedLinksManager.prepareSaveLinks(urls, downloader);
+        } finally {
+            for (const u of urls) {
+                this.preparingSaveUrls.delete(u);
+            }
+        }
         if (prep.hasDuplicate) {
             const duplicateLines = prep.duplicates
                 .map(d => `• ${d.url}（${d.reason.includes('key') ? '相同笔记内容' : '相同链接'}）`)
