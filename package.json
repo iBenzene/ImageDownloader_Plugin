@@ -1,0 +1,27 @@
+{
+    "name": "benben-image-downloader-plugin",
+    "version": "0.4.0",
+    "description": "《苯苯存图》浏览器插件",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node scripts/build.mjs",
+        "typecheck": "tsc --noEmit",
+        "test": "node --import tsx --test tests/*.test.ts",
+        "lint": "eslint --config eslint.config.js .",
+        "lint:fix": "eslint --config eslint.config.js . --fix"
+    },
+    "author": "iBenzene",
+    "license": "MIT",
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^22.10.0",
+        "esbuild": "^0.24.0",
+        "eslint": "^10.13.0",
+        "globals": "^17.13.0",
+        "happy-dom": "^21.0.4",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2",
+        "typescript-eslint": "^8.72.1"
+    }
+}

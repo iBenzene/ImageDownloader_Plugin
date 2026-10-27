@@ -1,0 +1,22 @@
+# IDE & Editor
+.vscode/
+.idea/
+
+# OS System Files
+.DS_Store
+[Dd]esktop.ini
+Thumbs.db
+$RECYCLE.BIN/
+
+# Dependencies & Lockfiles
+node_modules/
+package-lock.json
+
+# Build Artifacts
+dist/
+
+# Environment & Logs
+.env
+.env.*
+*.log
+tmp/
