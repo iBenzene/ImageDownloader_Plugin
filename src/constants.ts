@@ -1,12 +1,17 @@
 // src/constants.ts
 
-import { AllDownloaderType, LogLevel, PluginSettings, XhsDownloaderType } from './types';
+import {
+    AllDownloaderType,
+    LogLevel,
+    PluginSettings,
+    XhsDownloaderType
+} from './types';
 
 /** 小红书支持的下载器集合 */
 export const XHS_DOWNLOADERS: readonly XhsDownloaderType[] = [
     '小红书图片下载器',
     '小红书视频下载器',
-    '小红书实况图片下载器',
+    '小红书实况图片下载器'
 ] as const;
 
 /** 客户端支持的完整下载器列表, 保持与 iOS 端名称对齐 */
@@ -20,21 +25,21 @@ export const ALL_DOWNLOADERS: readonly AllDownloaderType[] = [
     'Pixiv 插画下载器',
     'Pixiv 动图下载器',
     'Twitter (X) 图片下载器',
-    'Twitter (X) 视频下载器',
+    'Twitter (X) 视频下载器'
 ] as const;
 
 /** 界面展示使用的下载器短名称映射 */
 export const SHORT_DOWNLOADER_NAMES: Record<string, string> = {
-    '小红书图片下载器': '小红书图片',
-    '小红书实况图片下载器': '小红书实况',
-    '小红书视频下载器': '小红书视频',
-    '米游社图片下载器': '米游社',
-    '微博图片下载器': '微博',
-    '哔哩哔哩视频下载器': '哔哩哔哩',
-    'Pixiv 插画下载器': 'Pixiv 插画',
     'Pixiv 动图下载器': 'Pixiv 动图',
+    'Pixiv 插画下载器': 'Pixiv 插画',
     'Twitter (X) 图片下载器': 'Twitter (X) 图片',
     'Twitter (X) 视频下载器': 'Twitter (X) 视频',
+    哔哩哔哩视频下载器: '哔哩哔哩',
+    小红书图片下载器: '小红书图片',
+    小红书实况图片下载器: '小红书实况',
+    小红书视频下载器: '小红书视频',
+    微博图片下载器: '微博',
+    米游社图片下载器: '米游社'
 };
 
 /** 实况图片成对缓存的特征前缀 */
@@ -63,20 +68,20 @@ export const MEDIA_DOWNLOAD_CONCURRENCY = 2;
 
 /** 客户端默认初始设置 */
 export const DEFAULT_SETTINGS: PluginSettings = {
-    serverUrl: '',
-    serverToken: '',
-    serverSideProxy: false,
-    preheatResources: false,
-    incrementalSync: true,
     defaultAction: 'download',
+    incrementalSync: true,
     logDisplayLevel: LogLevel.Info,
+    preheatResources: false,
+    serverSideProxy: false,
+    serverToken: '',
+    serverUrl: ''
 };
 
 /** 存储与多标签页通信键名定义 */
 export const STORAGE_KEYS = {
-    SETTINGS: 'benben_settings_v1',
-    LOGS: 'benben_logs_v1',
-    TASKS: 'benben_tasks_v1',
     EXECUTOR_LEASE: 'benben_executor_lease_v1',
+    LOGS: 'benben_logs_v1',
+    SETTINGS: 'benben_settings_v1',
     SYNC_LEASE: 'benben_sync_lease_v1',
+    TASKS: 'benben_tasks_v1'
 } as const;

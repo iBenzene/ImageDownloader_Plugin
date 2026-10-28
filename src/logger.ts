@@ -3,7 +3,12 @@
 import { MAX_LOG_ENTRIES } from './constants';
 import { storage } from './storage';
 import { LogEntry, LogLevel } from './types';
-import { formatRelativeDate, generateUUID, redactSensitive, toIso8601WithMs } from './utils';
+import {
+    formatRelativeDate,
+    generateUUID,
+    redactSensitive,
+    toIso8601WithMs
+} from './utils';
 
 /** 获取日志级别的本地化可读文案 */
 export const getLogLevelName = (level: LogLevel): string => {
@@ -42,35 +47,49 @@ class LoggerService {
             : undefined;
 
         const entry: LogEntry = {
+            context: safeContext,
             id: generateUUID(),
-            timestamp: toIso8601WithMs(),
             level,
             message: safeMessage,
             taskId: options?.taskId,
-            context: safeContext,
+            timestamp: toIso8601WithMs()
         };
 
         const logs = storage.getLogs();
         logs.push(entry);
         const trimmed =
-            logs.length > MAX_LOG_ENTRIES ? logs.slice(logs.length - MAX_LOG_ENTRIES) : logs;
+            logs.length > MAX_LOG_ENTRIES
+                ? logs.slice(logs.length - MAX_LOG_ENTRIES)
+                : logs;
         storage.setLogs(trimmed);
         return entry;
     }
 
-    public debug(message: string, options?: { taskId?: string; context?: string }): LogEntry {
+    public debug(
+        message: string,
+        options?: { taskId?: string; context?: string }
+    ): LogEntry {
         return this.log(LogLevel.Debug, message, options);
     }
 
-    public info(message: string, options?: { taskId?: string; context?: string }): LogEntry {
+    public info(
+        message: string,
+        options?: { taskId?: string; context?: string }
+    ): LogEntry {
         return this.log(LogLevel.Info, message, options);
     }
 
-    public warn(message: string, options?: { taskId?: string; context?: string }): LogEntry {
+    public warn(
+        message: string,
+        options?: { taskId?: string; context?: string }
+    ): LogEntry {
         return this.log(LogLevel.Warn, message, options);
     }
 
-    public error(message: string, options?: { taskId?: string; context?: string }): LogEntry {
+    public error(
+        message: string,
+        options?: { taskId?: string; context?: string }
+    ): LogEntry {
         return this.log(LogLevel.Error, message, options);
     }
 
@@ -91,10 +110,15 @@ class LoggerService {
         return storage
             .getLogs()
             .filter(entry => {
-                if (entry.level < minLevel) { return false; }
-                if (taskId && entry.taskId !== taskId) { return false; }
+                if (entry.level < minLevel) {
+                    return false;
+                }
+                if (taskId && entry.taskId !== taskId) {
+                    return false;
+                }
                 if (keyword) {
-                    const hay = `${entry.message} ${entry.context || ''} ${entry.taskId || ''}`.toLowerCase();
+                    const hay =
+                        `${entry.message} ${entry.context || ''} ${entry.taskId || ''}`.toLowerCase();
                     return hay.includes(keyword);
                 }
                 return true;
@@ -107,7 +131,9 @@ class LoggerService {
      * 格式化日志列表为纯文本
      * 便于用户复制或排查诊断问题
      */
-    public formatLogsForExport(entries: LogEntry[] = this.getFilteredLogs()): string {
+    public formatLogsForExport(
+        entries: LogEntry[] = this.getFilteredLogs()
+    ): string {
         const settings = storage.getSettings();
         return entries
             .slice()
@@ -115,7 +141,9 @@ class LoggerService {
             .map(e => {
                 const levelTag = getLogLevelName(e.level);
                 const taskPart = e.taskId ? ` [#${e.taskId.slice(0, 6)}]` : '';
-                const ctxPart = e.context ? ` | ${redactSensitive(e.context, settings.serverToken)}` : '';
+                const ctxPart = e.context
+                    ? ` | ${redactSensitive(e.context, settings.serverToken)}`
+                    : '';
                 return `[${e.timestamp}] [${levelTag}]${taskPart} ${redactSensitive(
                     e.message,
                     settings.serverToken

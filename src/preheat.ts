@@ -34,7 +34,11 @@ class PreheatService {
      * 预热失败不会删除已有收藏记录, 仅保留错误信息供后续重试
      */
     public async preheatLinks(options: {
-        items: Array<{ url: string; savedLinkId?: string; downloaderType: AllDownloaderType }>;
+        items: Array<{
+            url: string;
+            savedLinkId?: string;
+            downloaderType: AllDownloaderType;
+        }>;
         taskId?: string;
         signal?: AbortSignal;
         onProgress?: (p: PreheatItemProgress) => void;
@@ -44,11 +48,14 @@ class PreheatService {
             const msg = '请在设置中配置服务端地址';
             logger.error(`预热失败，${msg}`, { taskId: options.taskId });
             return {
-                ok: false,
                 cachedUrlsBySourceUrl: {},
-                totalCachedCount: 0,
-                failedUrls: options.items.map(i => ({ url: i.url, error: msg })),
                 error: msg,
+                failedUrls: options.items.map(i => ({
+                    error: msg,
+                    url: i.url
+                })),
+                ok: false,
+                totalCachedCount: 0
             };
         }
 
@@ -66,11 +73,11 @@ class PreheatService {
             if (options.signal?.aborted) {
                 if (item.savedLinkId) {
                     savedLinksManager.updatePreheatResult(item.savedLinkId, {
-                        state: 'failed',
                         error: '预热已取消',
+                        state: 'failed'
                     });
                 }
-                failedUrls.push({ url: item.url, error: '预热已取消' });
+                failedUrls.push({ error: '预热已取消', url: item.url });
                 break;
             }
 
@@ -78,44 +85,48 @@ class PreheatService {
                 const unsupMsg = `首期仅支持小红书资源预热（当前类型：${item.downloaderType}）`;
                 if (item.savedLinkId) {
                     savedLinksManager.updatePreheatResult(item.savedLinkId, {
-                        state: 'failed',
                         error: unsupMsg,
+                        state: 'failed'
                     });
                 }
-                failedUrls.push({ url: item.url, error: unsupMsg });
+                failedUrls.push({ error: unsupMsg, url: item.url });
                 options.onProgress?.({
                     currentUrlIndex: currentLine,
-                    totalUrlCount: total,
-                    message: `【${currentLine} / ${total}】${unsupMsg}`,
                     isError: true,
+                    message: `【${currentLine} / ${total}】${unsupMsg}`,
+                    totalUrlCount: total
                 });
                 continue;
             }
 
             const targetSaved =
-                (item.savedLinkId ? savedLinksManager.getItemById(item.savedLinkId) : undefined) ||
+                (item.savedLinkId
+                    ? savedLinksManager.getItemById(item.savedLinkId)
+                    : undefined) ||
                 savedLinksManager.getActiveItemByUrl(item.url);
 
             if (targetSaved) {
-                savedLinksManager.updatePreheatResult(targetSaved.id, { state: 'preheating' });
+                savedLinksManager.updatePreheatResult(targetSaved.id, {
+                    state: 'preheating'
+                });
             }
 
             options.onProgress?.({
                 currentUrlIndex: currentLine,
-                totalUrlCount: total,
-                message: `【${currentLine} / ${total}】预热中...`,
                 isError: false,
+                message: `【${currentLine} / ${total}】预热中...`,
+                totalUrlCount: total
             });
 
             try {
                 const extracted = await extractMediaUrls({
-                    url: item.url,
                     downloaderType: item.downloaderType,
-                    useProxy: true, // 预热流程始终强制开启服务端代理写入 S3
                     requestLogName: '预热',
                     settings,
                     signal: options.signal,
                     taskId: options.taskId,
+                    url: item.url,
+                    useProxy: true // 预热流程始终强制开启服务端代理写入 S3
                 });
 
                 // 核实服务端返回的直链是否真正落入对象存储路径
@@ -125,23 +136,28 @@ class PreheatService {
                 );
 
                 if (!verification.confirmed) {
-                    const errMsg = verification.reason || '未能确认资源已写入服务端对象存储';
+                    const errMsg =
+                        verification.reason ||
+                        '未能确认资源已写入服务端对象存储';
                     if (targetSaved) {
                         savedLinksManager.updatePreheatResult(targetSaved.id, {
-                            state: 'failed',
                             error: errMsg,
+                            state: 'failed'
                         });
                     }
-                    failedUrls.push({ url: item.url, error: errMsg });
-                    logger.warn(`[${currentLine} / ${total}] 预热未确认成功，${errMsg}`, {
-                        taskId: options.taskId,
-                        context: item.url,
-                    });
+                    failedUrls.push({ error: errMsg, url: item.url });
+                    logger.warn(
+                        `[${currentLine} / ${total}] 预热未确认成功，${errMsg}`,
+                        {
+                            context: item.url,
+                            taskId: options.taskId
+                        }
+                    );
                     options.onProgress?.({
                         currentUrlIndex: currentLine,
-                        totalUrlCount: total,
-                        message: `【${currentLine} / ${total}】${errMsg}`,
                         isError: true,
+                        message: `【${currentLine} / ${total}】${errMsg}`,
+                        totalUrlCount: total
                     });
                     continue;
                 }
@@ -151,40 +167,43 @@ class PreheatService {
 
                 if (targetSaved) {
                     savedLinksManager.updatePreheatResult(targetSaved.id, {
-                        state: 'preheated',
                         cachedUrls: verification.cachedUrls,
+                        state: 'preheated'
                     });
                 }
 
                 logger.info(
                     `[${currentLine} / ${total}] 预热成功，已缓存 ${verification.cachedUrls.length} 个资源`,
-                    { taskId: options.taskId, context: item.url }
+                    { context: item.url, taskId: options.taskId }
                 );
 
                 options.onProgress?.({
                     currentUrlIndex: currentLine,
-                    totalUrlCount: total,
-                    message: `【${currentLine} / ${total}】预热成功（${verification.cachedUrls.length} 个资源）`,
                     isError: false,
+                    message: `【${currentLine} / ${total}】预热成功（${verification.cachedUrls.length} 个资源）`,
+                    totalUrlCount: total
                 });
             } catch (err) {
                 const errMsg = err instanceof Error ? err.message : String(err);
                 if (targetSaved) {
                     savedLinksManager.updatePreheatResult(targetSaved.id, {
-                        state: 'failed',
                         error: errMsg,
+                        state: 'failed'
                     });
                 }
-                failedUrls.push({ url: item.url, error: errMsg });
-                logger.error(`[${currentLine} / ${total}] 预热过程发生错误，${errMsg}`, {
-                    taskId: options.taskId,
-                    context: item.url,
-                });
+                failedUrls.push({ error: errMsg, url: item.url });
+                logger.error(
+                    `[${currentLine} / ${total}] 预热过程发生错误，${errMsg}`,
+                    {
+                        context: item.url,
+                        taskId: options.taskId
+                    }
+                );
                 options.onProgress?.({
                     currentUrlIndex: currentLine,
-                    totalUrlCount: total,
-                    message: `【${currentLine} / ${total}】${errMsg}`,
                     isError: true,
+                    message: `【${currentLine} / ${total}】${errMsg}`,
+                    totalUrlCount: total
                 });
             }
         }
@@ -192,21 +211,21 @@ class PreheatService {
         if (totalCachedCount > 0) {
             // 预热成功后调度一次收藏同步, 将已缓存直链及时同步至其他终端
             syncCoordinator.scheduleSync('preheat_completed', 300, {
-                savedLinks: true,
                 history: false,
+                savedLinks: true
             });
         }
 
         const allOk = failedUrls.length === 0 && totalCachedCount > 0;
         return {
-            ok: allOk,
             cachedUrlsBySourceUrl,
-            totalCachedCount,
-            failedUrls,
             error:
                 failedUrls.length > 0
                     ? failedUrls.map(f => f.error).join('；')
                     : undefined,
+            failedUrls,
+            ok: allOk,
+            totalCachedCount
         };
     }
 }

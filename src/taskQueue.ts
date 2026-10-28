@@ -8,7 +8,12 @@ import { savedLinksManager } from './savedLinks';
 import { CURRENT_TAB_ID, storage } from './storage';
 import { syncCoordinator } from './sync';
 import { AllDownloaderType, TaskItem, TaskStatus, TaskType } from './types';
-import { generateUUID, isSameId, parseTimestampMs, toIso8601WithMs } from './utils';
+import {
+    generateUUID,
+    isSameId,
+    parseTimestampMs,
+    toIso8601WithMs
+} from './utils';
 
 export interface EnqueueTaskOptions {
     type: TaskType;
@@ -35,7 +40,10 @@ class TaskQueueManager {
 
     constructor() {
         this.recoverInterruptedTasks();
-        if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        if (
+            typeof window !== 'undefined' &&
+            typeof window.addEventListener === 'function'
+        ) {
             window.addEventListener('beforeunload', () => {
                 this.stop();
                 this.markCurrentTabTasksInterruptedOnUnload();
@@ -45,9 +53,13 @@ class TaskQueueManager {
 
     /** 启动待执行任务调度, 定期接管其他标签页释放租约后的排队任务 */
     public start(): void {
-        if (this.queueWakeTimer) { return; }
+        if (this.queueWakeTimer) {
+            return;
+        }
         this.recoverInterruptedTasks();
-        this.queueWakeTimer = setInterval(() => { void this.processQueue(); }, 2000);
+        this.queueWakeTimer = setInterval(() => {
+            void this.processQueue();
+        }, 2000);
         this.queueWakeTimer?.unref?.();
         void this.processQueue();
     }
@@ -84,14 +96,19 @@ class TaskQueueManager {
                 if (!isHeldByOtherLiveTab) {
                     tasks[i] = {
                         ...task,
-                        status: 'interrupted',
-                        updatedAt: now,
-                        message: '页面刷新或关闭导致任务中断，结果待确认（可手动重试）',
                         mediaSubTasks: (task.mediaSubTasks || []).map(st =>
                             st.status === 'running' || st.status === 'pending'
-                                ? { ...st, status: 'interrupted', error: '任务中断待确认' }
+                                ? {
+                                      ...st,
+                                      error: '任务中断待确认',
+                                      status: 'interrupted'
+                                  }
                                 : st
                         ),
+                        message:
+                            '页面刷新或关闭导致任务中断，结果待确认（可手动重试）',
+                        status: 'interrupted',
+                        updatedAt: now
                     };
                     recoveredCount++;
                 }
@@ -100,7 +117,9 @@ class TaskQueueManager {
 
         if (recoveredCount > 0) {
             storage.setTasks(tasks);
-            logger.warn(`恢复任务队列，已将 ${recoveredCount} 个未确认结果的任务标记为中断待确认`);
+            logger.warn(
+                `恢复任务队列，已将 ${recoveredCount} 个未确认结果的任务标记为中断待确认`
+            );
         }
         return recoveredCount;
     }
@@ -115,14 +134,18 @@ class TaskQueueManager {
             if (t.status === 'running' && t.executorTabId === CURRENT_TAB_ID) {
                 tasks[i] = {
                     ...t,
-                    status: 'interrupted',
-                    updatedAt: now,
-                    message: '页面关闭或刷新导致任务中断，结果待确认',
                     mediaSubTasks: (t.mediaSubTasks || []).map(st =>
                         st.status === 'running' || st.status === 'pending'
-                            ? { ...st, status: 'interrupted', error: '页面卸载中断' }
+                            ? {
+                                  ...st,
+                                  error: '页面卸载中断',
+                                  status: 'interrupted'
+                              }
                             : st
                     ),
+                    message: '页面关闭或刷新导致任务中断，结果待确认',
+                    status: 'interrupted',
+                    updatedAt: now
                 };
                 changed = true;
             }
@@ -150,34 +173,44 @@ class TaskQueueManager {
      * 查询指定链接是否处于待执行或正在执行的任务中
      * 用于页面按钮与列表项的状态防抖显示
      */
-    public getActiveTaskForUrl(url: string, type?: TaskType): TaskItem | undefined {
-        return storage.getTasks().find(
-            t =>
-                (t.status === 'pending' || t.status === 'running') &&
-                (!type || t.type === type) &&
-                t.urls.includes(url)
-        );
+    public getActiveTaskForUrl(
+        url: string,
+        type?: TaskType
+    ): TaskItem | undefined {
+        return storage
+            .getTasks()
+            .find(
+                t =>
+                    (t.status === 'pending' || t.status === 'running') &&
+                    (!type || t.type === type) &&
+                    t.urls.includes(url)
+            );
     }
 
     /**
      * 查询指定链接最近一次关联的任务记录
      * 优先返回待执行或运行中的任务, 其次返回最近更新的已完成/失败/取消/中断任务
      */
-    public getLatestTaskForUrl(url: string, type?: TaskType): TaskItem | undefined {
+    public getLatestTaskForUrl(
+        url: string,
+        type?: TaskType
+    ): TaskItem | undefined {
         const active = this.getActiveTaskForUrl(url, type);
         if (active) {
             return active;
         }
-        const candidates = storage.getTasks().filter(
-            t => (!type || t.type === type) && t.urls.includes(url)
-        );
+        const candidates = storage
+            .getTasks()
+            .filter(t => (!type || t.type === type) && t.urls.includes(url));
         if (candidates.length === 0) {
             return undefined;
         }
         let latest = candidates[0];
         let latestMs = parseTimestampMs(latest.updatedAt || latest.createdAt);
         for (let i = 1; i < candidates.length; i++) {
-            const ms = parseTimestampMs(candidates[i].updatedAt || candidates[i].createdAt);
+            const ms = parseTimestampMs(
+                candidates[i].updatedAt || candidates[i].createdAt
+            );
             if (ms > latestMs) {
                 latest = candidates[i];
                 latestMs = ms;
@@ -206,11 +239,14 @@ class TaskQueueManager {
         );
 
         if (existingActive) {
-            logger.debug(`忽略重复提交，复用队列中的活动任务（${options.title}）`, {
-                taskId: existingActive.id,
-            });
+            logger.debug(
+                `忽略重复提交，复用队列中的活动任务（${options.title}）`,
+                {
+                    taskId: existingActive.id
+                }
+            );
             void this.processQueue();
-            return { task: existingActive, deduplicated: true };
+            return { deduplicated: true, task: existingActive };
         }
 
         // 针对收藏任务立即落盘持久化, 随后依据配置决定是否自动联动预热与同步
@@ -227,23 +263,23 @@ class TaskQueueManager {
 
             const now = toIso8601WithMs();
             const saveTask: TaskItem = {
-                identityCheckIncomplete: options.identityCheckIncomplete,
-                id: generateUUID(),
-                type: 'save',
-                title: options.title,
-                urls: options.urls,
-                downloaderType: options.downloaderType,
-                savedLinkId: savedItems[0]?.id,
-                status: 'completed',
-                createdAt: now,
-                updatedAt: now,
-                currentNoteIndex: options.urls.length,
-                totalNoteCount: options.urls.length,
-                currentMediaIndex: 0,
-                totalMediaCount: 0,
                 completedMediaCount: 0,
+                createdAt: now,
+                currentMediaIndex: 0,
+                currentNoteIndex: options.urls.length,
+                downloaderType: options.downloaderType,
+                id: generateUUID(),
+                identityCheckIncomplete: options.identityCheckIncomplete,
                 mediaSubTasks: [],
                 message: `已保存 ${options.urls.length} 个链接${incompleteWarning}`,
+                savedLinkId: savedItems[0]?.id,
+                status: 'completed',
+                title: options.title,
+                totalMediaCount: 0,
+                totalNoteCount: options.urls.length,
+                type: 'save',
+                updatedAt: now,
+                urls: options.urls
             };
 
             tasks.unshift(saveTask);
@@ -252,51 +288,52 @@ class TaskQueueManager {
 
             // 调度一次后台收藏同步
             syncCoordinator.scheduleSync('save_links', 400, {
-                savedLinks: true,
                 history: false,
+                savedLinks: true
             });
 
             // 若开启了自动预热选项且存在链接则追加预热任务
             if (settings.preheatResources && savedItems.length > 0) {
                 const preheatUrls = savedItems.map(i => i.url);
                 this.enqueueTask({
-                    type: 'preheat',
-                    title: `预热收藏资源（${preheatUrls.length} 个链接）`,
-                    urls: preheatUrls,
                     downloaderType: options.downloaderType,
-                    savedLinkId: savedItems.length === 1 ? savedItems[0].id : undefined,
+                    savedLinkId:
+                        savedItems.length === 1 ? savedItems[0].id : undefined,
+                    title: `预热收藏资源（${preheatUrls.length} 个链接）`,
+                    type: 'preheat',
+                    urls: preheatUrls
                 });
             }
 
-            return { task: saveTask, deduplicated: false };
+            return { deduplicated: false, task: saveTask };
         }
 
         const now = toIso8601WithMs();
         const newTask: TaskItem = {
-            id: generateUUID(),
-            type: options.type,
-            title: options.title,
-            urls: options.urls,
-            downloaderType: options.downloaderType,
-            savedLinkId: options.savedLinkId,
-            forceReExtract: options.forceReExtract,
-            status: 'pending',
-            createdAt: now,
-            updatedAt: now,
-            currentNoteIndex: 0,
-            totalNoteCount: Math.max(1, options.urls.length),
-            currentMediaIndex: 0,
-            totalMediaCount: 0,
             completedMediaCount: 0,
+            createdAt: now,
+            currentMediaIndex: 0,
+            currentNoteIndex: 0,
+            downloaderType: options.downloaderType,
+            forceReExtract: options.forceReExtract,
+            id: generateUUID(),
             mediaSubTasks: [],
             message: '等待执行...',
+            savedLinkId: options.savedLinkId,
+            status: 'pending',
+            title: options.title,
+            totalMediaCount: 0,
+            totalNoteCount: Math.max(1, options.urls.length),
+            type: options.type,
+            updatedAt: now,
+            urls: options.urls
         };
 
         tasks.unshift(newTask);
         storage.setTasks(this.trimTasks(tasks));
 
         void this.processQueue();
-        return { task: newTask, deduplicated: false };
+        return { deduplicated: false, task: newTask };
     }
 
     /**
@@ -312,7 +349,9 @@ class TaskQueueManager {
 
         const tasks = storage.getTasks();
         const idx = tasks.findIndex(t => isSameId(t.id, taskId));
-        if (idx === -1) { return false; }
+        if (idx === -1) {
+            return false;
+        }
 
         const current = tasks[idx];
         if (current.status !== 'pending' && current.status !== 'running') {
@@ -326,14 +365,14 @@ class TaskQueueManager {
 
         tasks[idx] = {
             ...current,
-            status: 'cancelled',
-            updatedAt: toIso8601WithMs(),
-            message: `已取消任务${extraHint}`,
             mediaSubTasks: (current.mediaSubTasks || []).map(st =>
                 st.status === 'running' || st.status === 'pending'
-                    ? { ...st, status: 'cancelled', error: '用户取消' }
+                    ? { ...st, error: '用户取消', status: 'cancelled' }
                     : st
             ),
+            message: `已取消任务${extraHint}`,
+            status: 'cancelled',
+            updatedAt: toIso8601WithMs()
         };
         storage.setTasks(tasks);
         logger.info(`已取消任务（${current.title}）`, { taskId: current.id });
@@ -350,7 +389,9 @@ class TaskQueueManager {
     ): TaskItem | null {
         const tasks = storage.getTasks();
         const idx = tasks.findIndex(t => isSameId(t.id, taskId));
-        if (idx === -1) { return null; }
+        if (idx === -1) {
+            return null;
+        }
 
         const target = tasks[idx];
         if (target.status === 'running' || target.status === 'pending') {
@@ -365,22 +406,27 @@ class TaskQueueManager {
 
         tasks[idx] = {
             ...target,
-            status: 'pending',
-            forceReExtract: options?.forceReExtract ?? target.forceReExtract,
-            updatedAt: toIso8601WithMs(),
             error: undefined,
+            forceReExtract: options?.forceReExtract ?? target.forceReExtract,
+            mediaSubTasks: keepCompletedSubTasks
+                ? target.mediaSubTasks.map(s =>
+                      s.status === 'completed'
+                          ? s
+                          : {
+                                ...s,
+                                error: undefined,
+                                progressPercent: 0,
+                                status: 'pending'
+                            }
+                  )
+                : [],
             message: options?.forceReExtract
                 ? '等待重新解析并重试...'
                 : keepCompletedSubTasks
-                    ? '等待重试失败的媒体项...'
-                    : '等待重试...',
-            mediaSubTasks: keepCompletedSubTasks
-                ? target.mediaSubTasks.map(s =>
-                    s.status === 'completed'
-                        ? s
-                        : { ...s, status: 'pending', error: undefined, progressPercent: 0 }
-                )
-                : [],
+                  ? '等待重试失败的媒体项...'
+                  : '等待重试...',
+            status: 'pending',
+            updatedAt: toIso8601WithMs()
         };
 
         storage.setTasks(tasks);
@@ -405,7 +451,9 @@ class TaskQueueManager {
     public removeTask(taskId: string): boolean {
         const tasks = storage.getTasks();
         const target = tasks.find(t => isSameId(t.id, taskId));
-        if (!target) { return false; }
+        if (!target) {
+            return false;
+        }
         if (target.status === 'running') {
             this.cancelTask(taskId);
         }
@@ -419,7 +467,9 @@ class TaskQueueManager {
      * 依靠跨标签页租约锁确保多标签页环境下仅单实例消费执行
      */
     public async processQueue(): Promise<void> {
-        if (this.isProcessingLoop) { return; }
+        if (this.isProcessingLoop) {
+            return;
+        }
         this.isProcessingLoop = true;
 
         try {
@@ -436,7 +486,9 @@ class TaskQueueManager {
 
                 const leaseKey = this.getLeaseKey();
                 if (!storage.tryAcquireLease(leaseKey, 15000, nextTask.id)) {
-                    logger.debug('其他标签页正在执行队列任务，本标签页转为等待');
+                    logger.debug(
+                        '其他标签页正在执行队列任务，本标签页转为等待'
+                    );
                     break;
                 }
 
@@ -474,12 +526,14 @@ class TaskQueueManager {
     ): TaskItem | null {
         const tasks = storage.getTasks();
         const idx = tasks.findIndex(t => isSameId(t.id, taskId));
-        if (idx === -1) { return null; }
+        if (idx === -1) {
+            return null;
+        }
         const patch = updater(tasks[idx]);
         tasks[idx] = {
             ...tasks[idx],
             ...patch,
-            updatedAt: toIso8601WithMs(),
+            updatedAt: toIso8601WithMs()
         };
         storage.setTasks(tasks);
         return tasks[idx];
@@ -487,35 +541,39 @@ class TaskQueueManager {
 
     private async executeSingleTask(taskId: string): Promise<void> {
         const task = this.getTaskById(taskId);
-        if (!task || task.status !== 'pending') { return; }
+        if (!task || task.status !== 'pending') {
+            return;
+        }
 
         const controller = new AbortController();
         this.activeAbortControllers.set(task.id, controller);
 
         this.updateTaskState(task.id, () => ({
-            status: 'running',
+            error: undefined,
             executorTabId: CURRENT_TAB_ID,
             message: '正在执行...',
-            error: undefined,
+            status: 'running'
         }));
 
         try {
             if (task.type === 'sync') {
                 const res = await syncCoordinator.syncNow({
                     reason: 'task_queue_sync',
-                    signal: controller.signal,
+                    signal: controller.signal
                 });
                 const ok = res.savedLinks.ok && res.history.ok;
-                const errMsg = [res.savedLinks.error, res.history.error].filter(Boolean).join('；');
+                const errMsg = [res.savedLinks.error, res.history.error]
+                    .filter(Boolean)
+                    .join('；');
                 const syncSummary =
                     `同步完成（收藏推送 ${res.savedLinks.pushedCount}/拉取 ${res.savedLinks.pulledCount}，` +
                     `历史推送 ${res.history.pushedCount}/拉取 ${res.history.pulledCount}）`;
                 this.updateTaskState(task.id, () => ({
-                    status: ok ? 'completed' : 'failed',
                     currentNoteIndex: 1,
-                    totalNoteCount: 1,
-                    message: ok ? syncSummary : `同步失败：${errMsg}`,
                     error: ok ? undefined : errMsg,
+                    message: ok ? syncSummary : `同步失败：${errMsg}`,
+                    status: ok ? 'completed' : 'failed',
+                    totalNoteCount: 1
                 }));
                 return;
             }
@@ -523,37 +581,41 @@ class TaskQueueManager {
             if (task.type === 'preheat') {
                 const outcome = await preheatService.preheatLinks({
                     items: task.urls.map(u => ({
-                        url: u,
-                        savedLinkId: task.urls.length === 1 ? task.savedLinkId : undefined,
                         downloaderType: task.downloaderType,
+                        savedLinkId:
+                            task.urls.length === 1
+                                ? task.savedLinkId
+                                : undefined,
+                        url: u
                     })),
-                    taskId: task.id,
-                    signal: controller.signal,
                     onProgress: p => {
                         this.updateTaskState(task.id, () => ({
                             currentNoteIndex: p.currentUrlIndex,
-                            totalNoteCount: p.totalUrlCount,
                             message: p.message,
+                            totalNoteCount: p.totalUrlCount
                         }));
                     },
+                    signal: controller.signal,
+                    taskId: task.id
                 });
 
                 if (controller.signal.aborted) {
                     this.updateTaskState(task.id, () => ({
-                        status: 'cancelled',
-                        message: '已取消预热（已发往服务端的缓存操作可能仍在继续）',
+                        message:
+                            '已取消预热（已发往服务端的缓存操作可能仍在继续）',
+                        status: 'cancelled'
                     }));
                     return;
                 }
 
                 this.updateTaskState(task.id, () => ({
-                    status: outcome.ok ? 'completed' : 'failed',
                     completedMediaCount: outcome.totalCachedCount,
-                    totalMediaCount: outcome.totalCachedCount,
+                    error: outcome.ok ? undefined : outcome.error,
                     message: outcome.ok
                         ? `预热成功，共缓存 ${outcome.totalCachedCount} 个资源`
                         : `预热未完成：${outcome.error || '请检查服务端 S3 配置'}`,
-                    error: outcome.ok ? undefined : outcome.error,
+                    status: outcome.ok ? 'completed' : 'failed',
+                    totalMediaCount: outcome.totalCachedCount
                 }));
                 return;
             }
@@ -565,41 +627,46 @@ class TaskQueueManager {
                 let anyPartial = false;
 
                 for (let i = 0; i < task.urls.length; i++) {
-                    if (controller.signal.aborted) { break; }
+                    if (controller.signal.aborted) {
+                        break;
+                    }
                     const url = task.urls[i];
                     const noteIdx = i + 1;
 
                     // 若单链接下载任务带有待重试子任务列表则传给单任务下载服务
                     const retrySubTasks =
                         task.urls.length === 1 &&
-                            task.mediaSubTasks &&
-                            task.mediaSubTasks.length > 0 &&
-                            !task.forceReExtract
+                        task.mediaSubTasks &&
+                        task.mediaSubTasks.length > 0 &&
+                        !task.forceReExtract
                             ? task.mediaSubTasks
                             : undefined;
 
                     const dlOutcome = await downloadService.downloadSingleNote({
-                        url,
-                        downloaderType: task.downloaderType,
-                        savedLinkId: task.urls.length === 1 ? task.savedLinkId : undefined,
-                        forceReExtract: task.forceReExtract,
-                        existingSubTasksToRetry: retrySubTasks,
                         currentNoteIndex: noteIdx,
-                        totalNoteCount: task.urls.length,
-                        taskId: task.id,
-                        signal: controller.signal,
+                        downloaderType: task.downloaderType,
+                        existingSubTasksToRetry: retrySubTasks,
+                        forceReExtract: task.forceReExtract,
                         onProgress: p => {
                             this.updateTaskState(task.id, () => ({
-                                currentNoteIndex: p.currentNoteIndex,
-                                totalNoteCount: p.totalNoteCount,
-                                currentMediaIndex: p.currentMediaIndex,
-                                totalMediaCount: p.totalMediaCount,
                                 completedMediaCount: p.completedMediaCount,
+                                currentMediaIndex: p.currentMediaIndex,
+                                currentNoteIndex: p.currentNoteIndex,
                                 mediaSubTasks: p.mediaSubTasks,
-                                usedCachedUrls: p.usedCachedUrls,
                                 message: p.message,
+                                totalMediaCount: p.totalMediaCount,
+                                totalNoteCount: p.totalNoteCount,
+                                usedCachedUrls: p.usedCachedUrls
                             }));
                         },
+                        savedLinkId:
+                            task.urls.length === 1
+                                ? task.savedLinkId
+                                : undefined,
+                        signal: controller.signal,
+                        taskId: task.id,
+                        totalNoteCount: task.urls.length,
+                        url
                     });
 
                     totalCompletedMedia += dlOutcome.completedMediaCount;
@@ -615,30 +682,37 @@ class TaskQueueManager {
 
                 if (controller.signal.aborted) {
                     this.updateTaskState(task.id, () => ({
-                        status: 'cancelled',
                         message: '下载已取消',
+                        status: 'cancelled'
                     }));
                     return;
                 }
 
                 const allSuccess = totalCompletedNotes === task.urls.length;
-                const finalStatus: TaskStatus = allSuccess ? 'completed' : 'failed';
+                const finalStatus: TaskStatus = allSuccess
+                    ? 'completed'
+                    : 'failed';
                 const finalMsg = allSuccess
                     ? `下载完成，共保存 ${totalCompletedMedia} 个图片或视频`
-                    : lastError || (anyPartial ? '部分媒体下载失败，可点击重试' : '下载失败');
+                    : lastError ||
+                      (anyPartial
+                          ? '部分媒体下载失败，可点击重试'
+                          : '下载失败');
 
                 this.updateTaskState(task.id, () => ({
-                    status: finalStatus,
-                    message: finalMsg,
                     error: allSuccess ? undefined : finalMsg,
+                    message: finalMsg,
+                    status: finalStatus
                 }));
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             this.updateTaskState(task.id, () => ({
-                status: controller.signal.aborted ? 'cancelled' : 'failed',
-                message: controller.signal.aborted ? '已取消' : `任务异常：${msg}`,
                 error: msg,
+                message: controller.signal.aborted
+                    ? '已取消'
+                    : `任务异常：${msg}`,
+                status: controller.signal.aborted ? 'cancelled' : 'failed'
             }));
         } finally {
             this.activeAbortControllers.delete(task.id);
@@ -646,10 +720,19 @@ class TaskQueueManager {
     }
 
     private trimTasks(tasks: TaskItem[]): TaskItem[] {
-        if (tasks.length <= MAX_TASK_ITEMS) { return tasks; }
-        const active = tasks.filter(t => t.status === 'pending' || t.status === 'running');
-        const inactive = tasks.filter(t => t.status !== 'pending' && t.status !== 'running');
-        return [...active, ...inactive.slice(0, Math.max(0, MAX_TASK_ITEMS - active.length))];
+        if (tasks.length <= MAX_TASK_ITEMS) {
+            return tasks;
+        }
+        const active = tasks.filter(
+            t => t.status === 'pending' || t.status === 'running'
+        );
+        const inactive = tasks.filter(
+            t => t.status !== 'pending' && t.status !== 'running'
+        );
+        return [
+            ...active,
+            ...inactive.slice(0, Math.max(0, MAX_TASK_ITEMS - active.length))
+        ];
     }
 }
 

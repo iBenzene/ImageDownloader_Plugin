@@ -12,9 +12,13 @@ import {
     LivePhotoMediaItem,
     PluginSettings,
     SavedLinkItemAPI,
-    SavedLinksSyncResponse,
+    SavedLinksSyncResponse
 } from './types';
-import { normalizeServerBaseUrl, toIso8601WithMs, unescapeMediaUrl } from './utils';
+import {
+    normalizeServerBaseUrl,
+    toIso8601WithMs,
+    unescapeMediaUrl
+} from './utils';
 
 /** 统一 API 调用异常类 */
 export class ApiError extends Error {
@@ -45,10 +49,18 @@ export class ApiError extends Error {
 const classifyHttpError = (status: number, errorText: string): ApiError => {
     const msg = errorText || `HTTP ${status}`;
     if (status === 401 || status === 403 || msg.includes('认证失败')) {
-        return new ApiError(`鉴权失败，服务端令牌不正确（${msg}）`, status, 'auth');
+        return new ApiError(
+            `鉴权失败，服务端令牌不正确（${msg}）`,
+            status,
+            'auth'
+        );
     }
     if (status === 429) {
-        return new ApiError('请求过于频繁（触发限流 HTTP 429），请稍后重试', status, 'rate_limit');
+        return new ApiError(
+            '请求过于频繁（触发限流 HTTP 429），请稍后重试',
+            status,
+            'rate_limit'
+        );
     }
     if (
         msg.includes('S3 配置缺失') ||
@@ -58,16 +70,25 @@ const classifyHttpError = (status: number, errorText: string): ApiError => {
         msg.includes('InvalidAccessKeyId') ||
         msg.includes('SignatureDoesNotMatch')
     ) {
-        return new ApiError(`服务端对象存储（S3）未配置或凭证错误（${msg}）`, status, 's3_config');
+        return new ApiError(
+            `服务端对象存储（S3）未配置或凭证错误（${msg}）`,
+            status,
+            's3_config'
+        );
     }
     return new ApiError(msg, status, 'server');
 };
 
 /** 从响应体中提取可读的错误文本提示 */
 const parseErrorFromBody = (responseText: string, status: number): string => {
-    if (!responseText) { return `HTTP ${status}`; }
+    if (!responseText) {
+        return `HTTP ${status}`;
+    }
     try {
-        const parsed = JSON.parse(responseText) as { error?: string; message?: string };
+        const parsed = JSON.parse(responseText) as {
+            error?: string;
+            message?: string;
+        };
         if (typeof parsed?.error === 'string' && parsed.error) {
             return parsed.error;
         }
@@ -81,16 +102,26 @@ const parseErrorFromBody = (responseText: string, status: number): string => {
 };
 
 /** 构建完整的服务端接口请求 URL */
-const buildEndpointUrl = (baseUrl: string, path: string, queryParams: Record<string, string | undefined>): string => {
+const buildEndpointUrl = (
+    baseUrl: string,
+    path: string,
+    queryParams: Record<string, string | undefined>
+): string => {
     const normalizedBase = normalizeServerBaseUrl(baseUrl);
     if (!normalizedBase) {
         throw new ApiError('请在设置中配置服务端地址', 0, 'unconfigured');
     }
     let urlObj: URL;
     try {
-        urlObj = new URL(`${normalizedBase}${path.startsWith('/') ? path : `/${path}`}`);
+        urlObj = new URL(
+            `${normalizedBase}${path.startsWith('/') ? path : `/${path}`}`
+        );
     } catch {
-        throw new ApiError('服务端地址格式无效，请填写完整 http(s) 地址', 0, 'unconfigured');
+        throw new ApiError(
+            '服务端地址格式无效，请填写完整 http(s) 地址',
+            0,
+            'unconfigured'
+        );
     }
 
     for (const [k, v] of Object.entries(queryParams)) {
@@ -114,17 +145,17 @@ export const fetchContentKey = async (options: {
     const settings = options.settings ?? storage.getSettings();
     const token = settings.serverToken || 'default_token';
     const endpoint = buildEndpointUrl(settings.serverUrl, '/v1/resolve', {
-        url: options.url,
         downloader: options.downloader,
         token,
+        url: options.url
     });
 
     try {
         const res = await getGmBridge().httpRequest({
             method: 'GET',
-            url: endpoint,
-            timeout: 10000,
             signal: options.signal,
+            timeout: 10000,
+            url: endpoint
         });
 
         if (res.status === 422) {
@@ -135,12 +166,22 @@ export const fetchContentKey = async (options: {
             throw classifyHttpError(res.status, errMsg);
         }
 
-        const data = JSON.parse(res.responseText) as { contentKey?: string | null };
-        return typeof data.contentKey === 'string' && data.contentKey ? data.contentKey : null;
+        const data = JSON.parse(res.responseText) as {
+            contentKey?: string | null;
+        };
+        return typeof data.contentKey === 'string' && data.contentKey
+            ? data.contentKey
+            : null;
     } catch (err) {
-        if (err instanceof ApiError) { throw err; }
+        if (err instanceof ApiError) {
+            throw err;
+        }
         const msg = err instanceof Error ? err.message : String(err);
-        throw new ApiError(msg, 0, msg.includes('超时') ? 'timeout' : 'network');
+        throw new ApiError(
+            msg,
+            0,
+            msg.includes('超时') ? 'timeout' : 'network'
+        );
     }
 };
 
@@ -169,40 +210,44 @@ export const extractMediaUrls = async (options: {
 
     const token = settings.serverToken || 'default_token';
     const endpoint = buildEndpointUrl(settings.serverUrl, '/v1/extract', {
-        url: options.url,
         downloader: options.downloaderType,
         token,
-        useProxy: String(Boolean(options.useProxy)),
+        url: options.url,
+        useProxy: String(Boolean(options.useProxy))
     });
 
     const proxyMode = options.useProxy ? '服务端代理' : '直连提取';
     logger.info(
         `发起${logName}请求（${options.downloaderType}，${proxyMode}）`,
-        { taskId: options.taskId, context: options.url }
+        { context: options.url, taskId: options.taskId }
     );
 
     let res;
     try {
         res = await getGmBridge().httpRequest({
             method: 'GET',
-            url: endpoint,
-            timeout: 300000, // 与 iOS 端 300 秒长超时设定对齐
             signal: options.signal,
+            timeout: 300000, // 与 iOS 端 300 秒长超时设定对齐
+            url: endpoint
         });
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error(`${logName}请求网络异常，${msg}`, {
-            taskId: options.taskId,
             context: options.url,
+            taskId: options.taskId
         });
-        throw new ApiError(msg, 0, msg.includes('超时') ? 'timeout' : 'network');
+        throw new ApiError(
+            msg,
+            0,
+            msg.includes('超时') ? 'timeout' : 'network'
+        );
     }
 
     if (res.status !== 200) {
         const errMsg = parseErrorFromBody(res.responseText, res.status);
         logger.error(`服务端${logName}失败（HTTP ${res.status}），${errMsg}`, {
-            taskId: options.taskId,
             context: options.url,
+            taskId: options.taskId
         });
         throw classifyHttpError(res.status, errMsg);
     }
@@ -212,25 +257,33 @@ export const extractMediaUrls = async (options: {
         json = JSON.parse(res.responseText) as { mediaUrls?: unknown };
     } catch {
         logger.error(`服务端${logName}响应 JSON 解析失败`, {
-            taskId: options.taskId,
             context: options.url,
+            taskId: options.taskId
         });
         throw new ApiError(`服务端${logName}响应格式无法解析`, 200, 'parse');
     }
 
     if (!Array.isArray(json.mediaUrls)) {
         logger.error(`服务端${logName}响应缺少 mediaUrls 数组`, {
-            taskId: options.taskId,
             context: options.url,
+            taskId: options.taskId
         });
-        throw new ApiError(`服务端${logName}响应缺少 mediaUrls 字段`, 200, 'parse');
+        throw new ApiError(
+            `服务端${logName}响应缺少 mediaUrls 字段`,
+            200,
+            'parse'
+        );
     }
 
     if (options.downloaderType === '小红书实况图片下载器') {
         const items: LivePhotoMediaItem[] = [];
         for (const rawItem of json.mediaUrls) {
             if (!rawItem || typeof rawItem !== 'object') {
-                throw new ApiError('「小红书实况图片下载器」响应格式错误：预期为对象数组', 200, 'parse');
+                throw new ApiError(
+                    '「小红书实况图片下载器」响应格式错误：预期为对象数组',
+                    200,
+                    'parse'
+                );
             }
             const obj = rawItem as { cover?: unknown; video?: unknown };
             if (typeof obj.cover !== 'string' || !obj.cover) {
@@ -238,28 +291,35 @@ export const extractMediaUrls = async (options: {
             }
             items.push({
                 cover: unescapeMediaUrl(obj.cover),
-                video: typeof obj.video === 'string' && obj.video ? unescapeMediaUrl(obj.video) : '',
+                video:
+                    typeof obj.video === 'string' && obj.video
+                        ? unescapeMediaUrl(obj.video)
+                        : ''
             });
         }
         return {
-            kind: 'live',
             items,
-            rawMediaUrls: json.mediaUrls,
+            kind: 'live',
+            rawMediaUrls: json.mediaUrls
         };
     }
 
     const urls: string[] = [];
     for (const rawItem of json.mediaUrls) {
         if (typeof rawItem !== 'string') {
-            throw new ApiError('下载器响应解析失败：预期媒体项为字符串数组', 200, 'parse');
+            throw new ApiError(
+                '下载器响应解析失败：预期媒体项为字符串数组',
+                200,
+                'parse'
+            );
         }
         urls.push(unescapeMediaUrl(rawItem));
     }
 
     return {
         kind: 'single',
-        urls,
         rawMediaUrls: json.mediaUrls,
+        urls
     };
 };
 
@@ -278,26 +338,34 @@ export const syncSavedLinksApi = async (options: {
         throw new ApiError('缺少服务端地址或服务端令牌', 0, 'unconfigured');
     }
 
-    const endpoint = buildEndpointUrl(settings.serverUrl, '/v1/saved-links/sync', {
-        token: settings.serverToken,
-        since: options.since || undefined,
-    });
+    const endpoint = buildEndpointUrl(
+        settings.serverUrl,
+        '/v1/saved-links/sync',
+        {
+            since: options.since || undefined,
+            token: settings.serverToken
+        }
+    );
 
     let res;
     try {
         res = await getGmBridge().httpRequest({
-            method: 'POST',
-            url: endpoint,
-            headers: {
-                'Content-Type': 'application/json',
-            },
             data: JSON.stringify({ records: options.records }),
-            timeout: 30000,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
             signal: options.signal,
+            timeout: 30000,
+            url: endpoint
         });
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new ApiError(msg, 0, msg.includes('超时') ? 'timeout' : 'network');
+        throw new ApiError(
+            msg,
+            0,
+            msg.includes('超时') ? 'timeout' : 'network'
+        );
     }
 
     if (res.status !== 200) {
@@ -307,7 +375,10 @@ export const syncSavedLinksApi = async (options: {
 
     try {
         const parsed = JSON.parse(res.responseText) as SavedLinksSyncResponse;
-        if (!Array.isArray(parsed.records) || typeof parsed.syncedAt !== 'string') {
+        if (
+            !Array.isArray(parsed.records) ||
+            typeof parsed.syncedAt !== 'string'
+        ) {
             throw new Error('响应缺少 records 或 syncedAt');
         }
         return parsed;
@@ -336,25 +407,29 @@ export const syncHistoryApi = async (options: {
     }
 
     const endpoint = buildEndpointUrl(settings.serverUrl, '/v1/history/sync', {
-        token: settings.serverToken,
         since: options.since || undefined,
+        token: settings.serverToken
     });
 
     let res;
     try {
         res = await getGmBridge().httpRequest({
-            method: 'POST',
-            url: endpoint,
-            headers: {
-                'Content-Type': 'application/json',
-            },
             data: JSON.stringify({ records: options.records }),
-            timeout: 30000,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            method: 'POST',
             signal: options.signal,
+            timeout: 30000,
+            url: endpoint
         });
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        throw new ApiError(msg, 0, msg.includes('超时') ? 'timeout' : 'network');
+        throw new ApiError(
+            msg,
+            0,
+            msg.includes('超时') ? 'timeout' : 'network'
+        );
     }
 
     if (res.status !== 200) {
@@ -364,7 +439,10 @@ export const syncHistoryApi = async (options: {
 
     try {
         const parsed = JSON.parse(res.responseText) as HistorySyncResponse;
-        if (!Array.isArray(parsed.records) || typeof parsed.syncedAt !== 'string') {
+        if (
+            !Array.isArray(parsed.records) ||
+            typeof parsed.syncedAt !== 'string'
+        ) {
             throw new Error('响应缺少 records 或 syncedAt');
         }
         return parsed;
@@ -395,19 +473,33 @@ export const checkConnectionAndFeatures = async (
             throw new Error('invalid URL');
         }
     } catch {
-        items.push({ key: 'config', title: '服务端地址', status: 'error', detail: '请检查服务端地址' });
+        items.push({
+            detail: '请检查服务端地址',
+            key: 'config',
+            status: 'error',
+            title: '服务端地址'
+        });
     }
     if (!settings.serverToken.trim()) {
-        items.push({ key: 'config', title: '服务端令牌', status: 'error', detail: '未填写令牌' });
+        items.push({
+            detail: '未填写令牌',
+            key: 'config',
+            status: 'error',
+            title: '服务端令牌'
+        });
     }
     if (!items.length) {
         try {
-            await syncSavedLinksApi({ records: [], since: '2099-01-01T00:00:00.000Z', settings });
+            await syncSavedLinksApi({
+                records: [],
+                settings,
+                since: '2099-01-01T00:00:00.000Z'
+            });
             items.push({
-                key: 'connection',
-                title: '云端收藏读取',
-                status: 'ok',
                 detail: '读取检查通过，未测试写入、媒体下载或预热',
+                key: 'connection',
+                status: 'ok',
+                title: '云端收藏读取'
             });
         } catch (err) {
             let detail = '云端读取失败';
@@ -426,15 +518,22 @@ export const checkConnectionAndFeatures = async (
                     detail = '云端存储不可用';
                 }
             }
-            items.push({ key: 'connection', title: '连接检查', status: 'error', detail });
+            items.push({
+                detail,
+                key: 'connection',
+                status: 'error',
+                title: '连接检查'
+            });
         }
     }
     const overallOk = items.every(item => item.status === 'ok');
-    const summaryContext = items.map(item => `${item.title}（${item.detail}）`).join('，');
+    const summaryContext = items
+        .map(item => `${item.title}（${item.detail}）`)
+        .join('，');
     if (overallOk) {
         logger.info('服务端连接检查通过', { context: summaryContext });
     } else {
         logger.warn('服务端连接检查未通过', { context: summaryContext });
     }
-    return { overallOk, checkedAt: toIso8601WithMs(), items };
+    return { checkedAt: toIso8601WithMs(), items, overallOk };
 };

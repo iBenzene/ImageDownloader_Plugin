@@ -20,3 +20,6 @@ dist/
 .env.*
 *.log
 tmp/
+
+# Generated Husky files
+.husky/_/

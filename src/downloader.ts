@@ -13,7 +13,7 @@ import {
     buildMediaFilename,
     decodeLiveCachedUrls,
     isXhsDownloader,
-    unescapeMediaUrl,
+    unescapeMediaUrl
 } from './utils';
 
 export interface NoteDownloadProgress {
@@ -57,7 +57,7 @@ class DownloadService {
         liveItems?: LivePhotoMediaItem[];
     }): { subTasks: MediaSubTask[]; logicalMediaCount: number } {
         const subTasks: MediaSubTask[] = [];
-        const { sourceUrl, downloaderType } = options;
+        const { downloaderType, sourceUrl } = options;
 
         if (downloaderType === '小红书实况图片下载器' && options.liveItems) {
             const totalGroups = options.liveItems.length;
@@ -66,46 +66,46 @@ class DownloadService {
                 const groupNum = idx + 1;
                 const coverUrl = unescapeMediaUrl(pair.cover);
                 const coverName = buildMediaFilename({
-                    sourceUrl,
                     downloaderType,
                     mediaIndex: groupNum,
-                    totalCount: totalGroups,
                     mediaUrl: coverUrl,
                     role: 'live-cover',
+                    sourceUrl,
+                    totalCount: totalGroups
                 });
                 subTasks.push({
-                    index: seq++,
-                    pairIndex: groupNum,
-                    label: `实况 #${groupNum} 封面`,
-                    url: coverUrl,
                     filename: coverName,
+                    index: seq++,
                     isLiveCover: true,
+                    label: `实况 #${groupNum} 封面`,
+                    pairIndex: groupNum,
                     status: 'pending',
+                    url: coverUrl
                 });
 
                 if (pair.video && pair.video.trim()) {
                     const videoUrl = unescapeMediaUrl(pair.video);
                     const videoName = buildMediaFilename({
-                        sourceUrl,
                         downloaderType,
                         mediaIndex: groupNum,
-                        totalCount: totalGroups,
                         mediaUrl: videoUrl,
                         role: 'live-video',
+                        sourceUrl,
+                        totalCount: totalGroups
                     });
                     subTasks.push({
-                        index: seq++,
-                        pairIndex: groupNum,
-                        label: `实况 #${groupNum} 视频`,
-                        url: videoUrl,
                         filename: videoName,
+                        index: seq++,
                         isLiveVideo: true,
+                        label: `实况 #${groupNum} 视频`,
+                        pairIndex: groupNum,
                         status: 'pending',
+                        url: videoUrl
                     });
                 }
             });
 
-            return { subTasks, logicalMediaCount: totalGroups };
+            return { logicalMediaCount: totalGroups, subTasks };
         }
 
         const urls = options.singleUrls || [];
@@ -115,24 +115,24 @@ class DownloadService {
             const cleanUrl = unescapeMediaUrl(rawUrl);
             const mediaNum = idx + 1;
             const filename = buildMediaFilename({
-                sourceUrl,
                 downloaderType,
                 mediaIndex: mediaNum,
-                totalCount: total,
                 mediaUrl: cleanUrl,
                 role: isVideo ? 'video' : 'image',
+                sourceUrl,
+                totalCount: total
             });
             subTasks.push({
-                index: mediaNum,
-                pairIndex: mediaNum,
-                label: `${isVideo ? '视频' : '图片'} #${mediaNum}`,
-                url: cleanUrl,
                 filename,
+                index: mediaNum,
+                label: `${isVideo ? '视频' : '图片'} #${mediaNum}`,
+                pairIndex: mediaNum,
                 status: 'pending',
+                url: cleanUrl
             });
         });
 
-        return { subTasks, logicalMediaCount: total };
+        return { logicalMediaCount: total, subTasks };
     }
 
     /**
@@ -158,16 +158,16 @@ class DownloadService {
 
         if (!isXhsDownloader(options.downloaderType)) {
             const msg = `仅支持小红书下载器（${options.downloaderType}暂不支持在浏览器端下载）`;
-            logger.warn(msg, { taskId: options.taskId, context: options.url });
+            logger.warn(msg, { context: options.url, taskId: options.taskId });
             return {
+                cacheDownloadFailed: false,
+                completedMediaCount: 0,
+                error: msg,
+                mediaSubTasks: [],
                 ok: false,
                 partialSuccess: false,
-                completedMediaCount: 0,
                 totalMediaCount: 0,
-                usedCachedUrls: false,
-                cacheDownloadFailed: false,
-                mediaSubTasks: [],
-                error: msg,
+                usedCachedUrls: false
             };
         }
 
@@ -175,19 +175,21 @@ class DownloadService {
             const msg = '请在设置中配置服务端地址';
             logger.error(`下载失败，${msg}`, { taskId: options.taskId });
             return {
+                cacheDownloadFailed: false,
+                completedMediaCount: 0,
+                error: msg,
+                mediaSubTasks: [],
                 ok: false,
                 partialSuccess: false,
-                completedMediaCount: 0,
                 totalMediaCount: 0,
-                usedCachedUrls: false,
-                cacheDownloadFailed: false,
-                mediaSubTasks: [],
-                error: msg,
+                usedCachedUrls: false
             };
         }
 
         const matchedSaved =
-            (options.savedLinkId ? savedLinksManager.getItemById(options.savedLinkId) : undefined) ||
+            (options.savedLinkId
+                ? savedLinksManager.getItemById(options.savedLinkId)
+                : undefined) ||
             savedLinksManager.getActiveItemByUrl(options.url);
 
         let subTasks: MediaSubTask[] = [];
@@ -195,19 +197,27 @@ class DownloadService {
         let usedCachedUrls = false;
 
         // 若传入失败子任务列表则只对未完成项进行针对性重试
-        if (options.existingSubTasksToRetry && options.existingSubTasksToRetry.length > 0) {
+        if (
+            options.existingSubTasksToRetry &&
+            options.existingSubTasksToRetry.length > 0
+        ) {
             subTasks = options.existingSubTasksToRetry.map(st =>
                 st.status === 'completed'
                     ? { ...st }
-                    : { ...st, status: 'pending', error: undefined, progressPercent: 0 }
+                    : {
+                          ...st,
+                          error: undefined,
+                          progressPercent: 0,
+                          status: 'pending'
+                      }
             );
             const pairSet = new Set(subTasks.map(s => s.pairIndex ?? s.index));
             logicalMediaCount = pairSet.size;
         } else {
             const candidateCache = !options.forceReExtract
-                ? (options.cachedUrls && options.cachedUrls.length > 0
+                ? options.cachedUrls && options.cachedUrls.length > 0
                     ? options.cachedUrls
-                    : matchedSaved?.cachedUrls)
+                    : matchedSaved?.cachedUrls
                 : null;
 
             if (candidateCache && candidateCache.length > 0) {
@@ -216,12 +226,12 @@ class DownloadService {
                     if (decodedLive && decodedLive.length > 0) {
                         logger.info(
                             `[${currentNoteIndex} / ${totalNoteCount}] 使用预热缓存的 ${decodedLive.length} 个实况资源链接`,
-                            { taskId: options.taskId, context: options.url }
+                            { context: options.url, taskId: options.taskId }
                         );
                         const built = this.buildMediaSubTasks({
-                            sourceUrl: options.url,
                             downloaderType: options.downloaderType,
                             liveItems: decodedLive,
+                            sourceUrl: options.url
                         });
                         subTasks = built.subTasks;
                         logicalMediaCount = built.logicalMediaCount;
@@ -230,22 +240,24 @@ class DownloadService {
                         // 实况缓存格式不兼容时平滑回退至实时解析接口
                         logger.warn(
                             `[${currentNoteIndex} / ${totalNoteCount}] 实况预热缓存格式无法解析，回退实时解析`,
-                            { taskId: options.taskId, context: options.url }
+                            { context: options.url, taskId: options.taskId }
                         );
                     }
                 } else {
                     const validStrings = candidateCache.every(
-                        u => typeof u === 'string' && /^https?:\/\//i.test(unescapeMediaUrl(u))
+                        u =>
+                            typeof u === 'string' &&
+                            /^https?:\/\//i.test(unescapeMediaUrl(u))
                     );
                     if (validStrings) {
                         logger.info(
                             `[${currentNoteIndex} / ${totalNoteCount}] 使用预热缓存的 ${candidateCache.length} 个资源链接`,
-                            { taskId: options.taskId, context: options.url }
+                            { context: options.url, taskId: options.taskId }
                         );
                         const built = this.buildMediaSubTasks({
-                            sourceUrl: options.url,
                             downloaderType: options.downloaderType,
                             singleUrls: candidateCache,
+                            sourceUrl: options.url
                         });
                         subTasks = built.subTasks;
                         logicalMediaCount = built.logicalMediaCount;
@@ -253,7 +265,7 @@ class DownloadService {
                     } else {
                         logger.warn(
                             `[${currentNoteIndex} / ${totalNoteCount}] 预热缓存链接格式无效，回退实时解析`,
-                            { taskId: options.taskId, context: options.url }
+                            { context: options.url, taskId: options.taskId }
                         );
                     }
                 }
@@ -262,77 +274,78 @@ class DownloadService {
             // 无缓存或回退时请求服务端解析接口
             if (subTasks.length === 0) {
                 options.onProgress?.({
-                    currentNoteIndex,
-                    totalNoteCount,
-                    currentMediaIndex: 0,
-                    totalMediaCount: 0,
                     completedMediaCount: 0,
-                    mediaSubTasks: [],
-                    usedCachedUrls: false,
-                    message: `【${currentNoteIndex} / ${totalNoteCount}】正在解析媒体链接...`,
+                    currentMediaIndex: 0,
+                    currentNoteIndex,
                     isError: false,
                     isWarning: false,
+                    mediaSubTasks: [],
+                    message: `【${currentNoteIndex} / ${totalNoteCount}】正在解析媒体链接...`,
+                    totalMediaCount: 0,
+                    totalNoteCount,
+                    usedCachedUrls: false
                 });
 
                 try {
                     const extracted = await extractMediaUrls({
-                        url: options.url,
                         downloaderType: options.downloaderType,
-                        useProxy: settings.serverSideProxy,
                         requestLogName: '解析',
                         settings,
                         signal: options.signal,
                         taskId: options.taskId,
+                        url: options.url,
+                        useProxy: settings.serverSideProxy
                     });
 
                     if (extracted.kind === 'live') {
                         const built = this.buildMediaSubTasks({
-                            sourceUrl: options.url,
                             downloaderType: options.downloaderType,
                             liveItems: extracted.items,
+                            sourceUrl: options.url
                         });
                         subTasks = built.subTasks;
                         logicalMediaCount = built.logicalMediaCount;
                     } else {
                         const built = this.buildMediaSubTasks({
-                            sourceUrl: options.url,
                             downloaderType: options.downloaderType,
                             singleUrls: extracted.urls,
+                            sourceUrl: options.url
                         });
                         subTasks = built.subTasks;
                         logicalMediaCount = built.logicalMediaCount;
                     }
                 } catch (err) {
-                    const rawErr = err instanceof Error ? err.message : String(err);
+                    const rawErr =
+                        err instanceof Error ? err.message : String(err);
                     const errMsg = `【${currentNoteIndex} / ${totalNoteCount}】${rawErr}`;
                     this.recordOutcomeToHistoryAndSaved({
-                        url: options.url,
                         downloaderType: options.downloaderType,
-                        savedLinkId: matchedSaved?.id,
                         isSuccess: false,
                         mediaCount: 0,
+                        savedLinkId: matchedSaved?.id,
+                        url: options.url
                     });
                     options.onProgress?.({
-                        currentNoteIndex,
-                        totalNoteCount,
-                        currentMediaIndex: 0,
-                        totalMediaCount: 0,
                         completedMediaCount: 0,
-                        mediaSubTasks: [],
-                        usedCachedUrls: false,
-                        message: errMsg,
+                        currentMediaIndex: 0,
+                        currentNoteIndex,
                         isError: true,
                         isWarning: false,
+                        mediaSubTasks: [],
+                        message: errMsg,
+                        totalMediaCount: 0,
+                        totalNoteCount,
+                        usedCachedUrls: false
                     });
                     return {
+                        cacheDownloadFailed: false,
+                        completedMediaCount: 0,
+                        error: errMsg,
+                        mediaSubTasks: [],
                         ok: false,
                         partialSuccess: false,
-                        completedMediaCount: 0,
                         totalMediaCount: 0,
-                        usedCachedUrls: false,
-                        cacheDownloadFailed: false,
-                        mediaSubTasks: [],
-                        error: errMsg,
+                        usedCachedUrls: false
                     };
                 }
             }
@@ -341,34 +354,37 @@ class DownloadService {
         if (subTasks.length === 0) {
             const emptyMsg = `[${currentNoteIndex} / ${totalNoteCount}] 未提取到图片或视频的链接`;
             this.recordOutcomeToHistoryAndSaved({
-                url: options.url,
                 downloaderType: options.downloaderType,
-                savedLinkId: matchedSaved?.id,
                 isSuccess: false,
                 mediaCount: 0,
+                savedLinkId: matchedSaved?.id,
+                url: options.url
             });
-            logger.error(emptyMsg, { taskId: options.taskId, context: options.url });
+            logger.error(emptyMsg, {
+                context: options.url,
+                taskId: options.taskId
+            });
             options.onProgress?.({
-                currentNoteIndex,
-                totalNoteCount,
-                currentMediaIndex: 0,
-                totalMediaCount: 0,
                 completedMediaCount: 0,
-                mediaSubTasks: [],
-                usedCachedUrls,
-                message: emptyMsg,
+                currentMediaIndex: 0,
+                currentNoteIndex,
                 isError: true,
                 isWarning: false,
+                mediaSubTasks: [],
+                message: emptyMsg,
+                totalMediaCount: 0,
+                totalNoteCount,
+                usedCachedUrls
             });
             return {
+                cacheDownloadFailed: false,
+                completedMediaCount: 0,
+                error: emptyMsg,
+                mediaSubTasks: [],
                 ok: false,
                 partialSuccess: false,
-                completedMediaCount: 0,
                 totalMediaCount: 0,
-                usedCachedUrls,
-                cacheDownloadFailed: false,
-                mediaSubTasks: [],
-                error: emptyMsg,
+                usedCachedUrls
             };
         }
 
@@ -378,31 +394,43 @@ class DownloadService {
             .filter(idx => idx !== -1);
 
         let pointer = 0;
-        const concurrency = Math.min(MEDIA_DOWNLOAD_CONCURRENCY, Math.max(1, pendingIndices.length));
+        const concurrency = Math.min(
+            MEDIA_DOWNLOAD_CONCURRENCY,
+            Math.max(1, pendingIndices.length)
+        );
 
-        const emitSubTaskProgress = (activeIdx: number, warning = false, error = false, customMsg?: string) => {
-            const completedFiles = subTasks.filter(s => s.status === 'completed').length;
+        const emitSubTaskProgress = (
+            activeIdx: number,
+            warning = false,
+            error = false,
+            customMsg?: string
+        ) => {
+            const completedFiles = subTasks.filter(
+                s => s.status === 'completed'
+            ).length;
             const msg =
                 customMsg ||
                 `【${currentNoteIndex} / ${totalNoteCount}】下载中...（${completedFiles} / ${subTasks.length}）`;
             options.onProgress?.({
-                currentNoteIndex,
-                totalNoteCount,
-                currentMediaIndex: activeIdx + 1,
-                totalMediaCount: subTasks.length,
                 completedMediaCount: completedFiles,
-                mediaSubTasks: subTasks.map(s => ({ ...s })),
-                usedCachedUrls,
-                message: msg,
+                currentMediaIndex: activeIdx + 1,
+                currentNoteIndex,
                 isError: error,
                 isWarning: warning,
+                mediaSubTasks: subTasks.map(s => ({ ...s })),
+                message: msg,
+                totalMediaCount: subTasks.length,
+                totalNoteCount,
+                usedCachedUrls
             });
         };
 
         const worker = async () => {
             while (pointer < pendingIndices.length) {
                 const subIdx = pendingIndices[pointer++];
-                if (subIdx === undefined) { break; }
+                if (subIdx === undefined) {
+                    break;
+                }
                 const subTask = subTasks[subIdx];
 
                 if (options.signal?.aborted) {
@@ -417,31 +445,39 @@ class DownloadService {
 
                 try {
                     const dlRes = await getGmBridge().downloadFile({
-                        url: subTask.url,
                         name: subTask.filename,
-                        timeout: 180000,
-                        signal: options.signal,
                         onProgress: (loaded, totalBytes) => {
                             if (totalBytes > 0) {
-                                subTask.progressPercent = Math.min(100, Math.round((loaded / totalBytes) * 100));
+                                subTask.progressPercent = Math.min(
+                                    100,
+                                    Math.round((loaded / totalBytes) * 100)
+                                );
                             }
                         },
+                        signal: options.signal,
+                        timeout: 180000,
+                        url: subTask.url
                     });
 
                     if (!dlRes.confirmedByManager) {
-                        throw new Error('未能确认浏览器或脚本管理器已完成文件落盘');
+                        throw new Error(
+                            '未能确认浏览器或脚本管理器已完成文件落盘'
+                        );
                     }
 
                     subTask.status = 'completed';
                     subTask.progressPercent = 100;
                     emitSubTaskProgress(subIdx);
                 } catch (err) {
-                    const errMsg = err instanceof Error ? err.message : String(err);
-                    subTask.status = options.signal?.aborted ? 'cancelled' : 'failed';
+                    const errMsg =
+                        err instanceof Error ? err.message : String(err);
+                    subTask.status = options.signal?.aborted
+                        ? 'cancelled'
+                        : 'failed';
                     subTask.error = errMsg;
                     logger.error(
                         `[${currentNoteIndex} / ${totalNoteCount}] 媒体下载失败（${subTask.label}），${errMsg}`,
-                        { taskId: options.taskId, context: subTask.url }
+                        { context: subTask.url, taskId: options.taskId }
                     );
                     emitSubTaskProgress(subIdx, true, false);
                 }
@@ -468,44 +504,48 @@ class DownloadService {
 
         const failedSubTasks = subTasks.filter(s => s.status !== 'completed');
         const allCompleted = failedSubTasks.length === 0;
-        const partialSuccess = !allCompleted && subTasks.some(s => s.status === 'completed');
+        const partialSuccess =
+            !allCompleted && subTasks.some(s => s.status === 'completed');
         const cacheDownloadFailed = usedCachedUrls && !allCompleted;
 
         // 落地记录至下载历史并更新本地收藏记录的状态
         this.recordOutcomeToHistoryAndSaved({
-            url: options.url,
             downloaderType: options.downloaderType,
-            savedLinkId: matchedSaved?.id,
             isSuccess: allCompleted,
             mediaCount: completedLogicalCount,
+            savedLinkId: matchedSaved?.id,
+            url: options.url
         });
 
         if (allCompleted) {
             const doneMsg = `下载完成，共保存 ${logicalMediaCount} 个媒体`;
-            logger.info(`[${currentNoteIndex} / ${totalNoteCount}] ${doneMsg}`, {
-                taskId: options.taskId,
-                context: options.url,
-            });
+            logger.info(
+                `[${currentNoteIndex} / ${totalNoteCount}] ${doneMsg}`,
+                {
+                    context: options.url,
+                    taskId: options.taskId
+                }
+            );
             options.onProgress?.({
-                currentNoteIndex,
-                totalNoteCount,
-                currentMediaIndex: subTasks.length,
-                totalMediaCount: subTasks.length,
                 completedMediaCount: subTasks.length,
-                mediaSubTasks: subTasks.map(s => ({ ...s })),
-                usedCachedUrls,
-                message: doneMsg,
+                currentMediaIndex: subTasks.length,
+                currentNoteIndex,
                 isError: false,
                 isWarning: false,
+                mediaSubTasks: subTasks.map(s => ({ ...s })),
+                message: doneMsg,
+                totalMediaCount: subTasks.length,
+                totalNoteCount,
+                usedCachedUrls
             });
             return {
+                cacheDownloadFailed: false,
+                completedMediaCount: logicalMediaCount,
+                mediaSubTasks: subTasks,
                 ok: true,
                 partialSuccess: false,
-                completedMediaCount: logicalMediaCount,
                 totalMediaCount: logicalMediaCount,
-                usedCachedUrls,
-                cacheDownloadFailed: false,
-                mediaSubTasks: subTasks,
+                usedCachedUrls
             };
         }
 
@@ -519,27 +559,28 @@ class DownloadService {
         }
 
         options.onProgress?.({
-            currentNoteIndex,
-            totalNoteCount,
+            completedMediaCount: subTasks.filter(s => s.status === 'completed')
+                .length,
             currentMediaIndex: subTasks.length,
-            totalMediaCount: subTasks.length,
-            completedMediaCount: subTasks.filter(s => s.status === 'completed').length,
-            mediaSubTasks: subTasks.map(s => ({ ...s })),
-            usedCachedUrls,
-            message: failSummary,
+            currentNoteIndex,
             isError: !partialSuccess,
             isWarning: partialSuccess,
+            mediaSubTasks: subTasks.map(s => ({ ...s })),
+            message: failSummary,
+            totalMediaCount: subTasks.length,
+            totalNoteCount,
+            usedCachedUrls
         });
 
         return {
+            cacheDownloadFailed,
+            completedMediaCount: completedLogicalCount,
+            error: failSummary,
+            mediaSubTasks: subTasks,
             ok: false,
             partialSuccess,
-            completedMediaCount: completedLogicalCount,
             totalMediaCount: logicalMediaCount,
-            usedCachedUrls,
-            cacheDownloadFailed,
-            mediaSubTasks: subTasks,
-            error: failSummary,
+            usedCachedUrls
         };
     }
 
@@ -551,10 +592,10 @@ class DownloadService {
         mediaCount: number;
     }): void {
         historyManager.addRecord({
-            url: options.url,
             downloaderType: options.downloaderType,
             isSuccess: options.isSuccess,
             mediaCount: options.mediaCount,
+            url: options.url
         });
 
         if (options.savedLinkId) {
@@ -563,7 +604,9 @@ class DownloadService {
                 options.isSuccess ? 'success' : 'failure'
             );
         } else {
-            const activeSaved = savedLinksManager.getActiveItemByUrl(options.url);
+            const activeSaved = savedLinksManager.getActiveItemByUrl(
+                options.url
+            );
             if (activeSaved) {
                 savedLinksManager.updateStatus(
                     activeSaved.id,
@@ -573,8 +616,8 @@ class DownloadService {
         }
 
         syncCoordinator.scheduleSync('download_completed', 500, {
-            savedLinks: true,
             history: true,
+            savedLinks: true
         });
     }
 }

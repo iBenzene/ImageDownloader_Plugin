@@ -1,18 +1,32 @@
 // src/utils.ts
 
-import { LIVE_CACHE_PREFIX, SHORT_DOWNLOADER_NAMES, XHS_DOWNLOADERS } from './constants';
-import { AllDownloaderType, LivePhotoMediaItem, XhsDownloaderType } from './types';
+import {
+    LIVE_CACHE_PREFIX,
+    SHORT_DOWNLOADER_NAMES,
+    XHS_DOWNLOADERS
+} from './constants';
+import {
+    AllDownloaderType,
+    LivePhotoMediaItem,
+    XhsDownloaderType
+} from './types';
 
 /**
  * 生成大写 UUID
  * 格式与 iOS 端原生 UUID 字符串完全对齐
  */
 export const generateUUID = (): string => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    if (
+        typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function'
+    ) {
         return crypto.randomUUID().toUpperCase();
     }
     const bytes = new Uint8Array(16);
-    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    if (
+        typeof crypto !== 'undefined' &&
+        typeof crypto.getRandomValues === 'function'
+    ) {
         crypto.getRandomValues(bytes);
     } else {
         for (let i = 0; i < 16; i++) {
@@ -21,7 +35,9 @@ export const generateUUID = (): string => {
     }
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 };
 
@@ -29,8 +45,13 @@ export const generateUUID = (): string => {
  * 忽略大小写判定两个记录标识是否一致
  * 防止由于大小写差异造成重复创建或找不到已有记录
  */
-export const isSameId = (a: string | undefined | null, b: string | undefined | null): boolean => {
-    if (!a || !b) { return false; }
+export const isSameId = (
+    a: string | undefined | null,
+    b: string | undefined | null
+): boolean => {
+    if (!a || !b) {
+        return false;
+    }
     return a.trim().toUpperCase() === b.trim().toUpperCase();
 };
 
@@ -38,7 +59,9 @@ export const isSameId = (a: string | undefined | null, b: string | undefined | n
  * 将指定时间转换为包含毫秒的 UTC ISO 8601 字符串
  * 与 iOS 原生格式化器配置对齐
  */
-export const toIso8601WithMs = (date: Date | number | string = new Date()): string => {
+export const toIso8601WithMs = (
+    date: Date | number | string = new Date()
+): string => {
     const d = date instanceof Date ? date : new Date(date);
     if (Number.isNaN(d.getTime())) {
         return new Date().toISOString();
@@ -48,7 +71,9 @@ export const toIso8601WithMs = (date: Date | number | string = new Date()): stri
 
 /** 解析 ISO 8601 时间戳字符串为 Unix 毫秒数 */
 export const parseTimestampMs = (iso: string | undefined | null): number => {
-    if (!iso) { return 0; }
+    if (!iso) {
+        return 0;
+    }
     const ms = Date.parse(iso);
     return Number.isNaN(ms) ? 0 : ms;
 };
@@ -57,16 +82,29 @@ export const parseTimestampMs = (iso: string | undefined | null): number => {
  * 将时间戳格式化为适于界面展示的相对日期与时刻
  * 展示逻辑与移动端历史和收藏模块保持一致
  */
-export const formatRelativeDate = (iso: string, now: Date = new Date()): string => {
+export const formatRelativeDate = (
+    iso: string,
+    now: Date = new Date()
+): string => {
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) { return iso; }
+    if (Number.isNaN(date.getTime())) {
+        return iso;
+    }
 
     const pad = (n: number) => String(n).padStart(2, '0');
     const hhmm = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+    ).getTime();
     const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-    const targetDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const targetDayStart = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+    ).getTime();
 
     if (targetDayStart === todayStart) {
         return `今天 ${hhmm}`;
@@ -89,7 +127,10 @@ export const normalizeServerBaseUrl = (rawUrl: string): string => {
  * 计算服务端数据空间隔离哈希
  * 依据服务端地址与访问凭证派生独立空间标识, 避免不同服务器实例数据混淆
  */
-export const getServerNamespaceHash = (serverUrl: string, serverToken: string): string => {
+export const getServerNamespaceHash = (
+    serverUrl: string,
+    serverToken: string
+): string => {
     const normalizedUrl = normalizeServerBaseUrl(serverUrl).toLowerCase();
     const token = (serverToken || '').trim();
     if (!normalizedUrl && !token) {
@@ -113,13 +154,20 @@ export const getServerNamespaceHash = (serverUrl: string, serverToken: string): 
  * 对服务端令牌以及地址参数中的安全凭证进行遮蔽
  */
 export const redactSensitive = (text: string, serverToken?: string): string => {
-    if (!text) { return ''; }
+    if (!text) {
+        return '';
+    }
     let result = text;
 
     if (serverToken && serverToken.trim().length > 0) {
-        const escaped = serverToken.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escaped = serverToken
+            .trim()
+            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         result = result.replace(new RegExp(escaped, 'g'), '***');
-        const encoded = encodeURIComponent(serverToken.trim()).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const encoded = encodeURIComponent(serverToken.trim()).replace(
+            /[.*+?^${}()|[\]\\]/g,
+            '\\$&'
+        );
         if (encoded !== escaped) {
             result = result.replace(new RegExp(encoded, 'g'), '***');
         }
@@ -158,7 +206,9 @@ export const extractUrlsFromInput = (
 
     lines.forEach((rawLine, index) => {
         const line = rawLine.trim();
-        if (!line) { return; }
+        if (!line) {
+            return;
+        }
         const match = line.match(LINK_PATTERN);
         if (match && match[0]) {
             urls.push(match[0]);
@@ -170,14 +220,16 @@ export const extractUrlsFromInput = (
         }
     });
 
-    return { urls, skippedLines, warning };
+    return { skippedLines, urls, warning };
 };
 
 /**
  * 判断指定下载器所属的去重识别平台
  * 与服务端内容识别规则保持同步
  */
-export const getIdentityPlatform = (downloader: string): 'xhs' | 'bilibili' | null => {
+export const getIdentityPlatform = (
+    downloader: string
+): 'xhs' | 'bilibili' | null => {
     if ((XHS_DOWNLOADERS as readonly string[]).includes(downloader)) {
         return 'xhs';
     }
@@ -187,11 +239,15 @@ export const getIdentityPlatform = (downloader: string): 'xhs' | 'bilibili' | nu
     return null;
 };
 
-export const isXhsDownloader = (downloader: string): downloader is XhsDownloaderType => {
+export const isXhsDownloader = (
+    downloader: string
+): downloader is XhsDownloaderType => {
     return (XHS_DOWNLOADERS as readonly string[]).includes(downloader);
 };
 
-export const getShortDownloaderName = (downloader: AllDownloaderType): string => {
+export const getShortDownloaderName = (
+    downloader: AllDownloaderType
+): string => {
     return SHORT_DOWNLOADER_NAMES[downloader] || downloader;
 };
 
@@ -199,18 +255,26 @@ export const getShortDownloaderName = (downloader: AllDownloaderType): string =>
  * 本地同步提取内容去重标识 contentKey
  * 仅用于去重判定, 不可替换原链接中包含的关键校验参数
  */
-export const extractLocalContentKey = (rawUrl: string, downloader: string): string | null => {
+export const extractLocalContentKey = (
+    rawUrl: string,
+    downloader: string
+): string | null => {
     const platform = getIdentityPlatform(downloader);
-    if (!platform) { return null; }
+    if (!platform) {
+        return null;
+    }
 
     try {
         const url = new URL(rawUrl.trim());
         if (
             platform === 'xhs' &&
-            (url.hostname === 'www.xiaohongshu.com' || url.hostname === 'xiaohongshu.com')
+            (url.hostname === 'www.xiaohongshu.com' ||
+                url.hostname === 'xiaohongshu.com')
         ) {
             // 兼容发现页, 笔记详情页与个人主页下属的笔记路径
-            const directMatch = url.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f\d]{24})\/?$/i);
+            const directMatch = url.pathname.match(
+                /^\/(?:explore|discovery\/item)\/([a-f\d]{24})\/?$/i
+            );
             if (directMatch) {
                 return `xhs:${directMatch[1].toLowerCase()}`;
             }
@@ -223,11 +287,19 @@ export const extractLocalContentKey = (rawUrl: string, downloader: string): stri
         }
         if (
             platform === 'bilibili' &&
-            ['www.bilibili.com', 'bilibili.com', 'm.bilibili.com'].includes(url.hostname)
+            ['www.bilibili.com', 'bilibili.com', 'm.bilibili.com'].includes(
+                url.hostname
+            )
         ) {
-            const match = url.pathname.match(/^\/video\/(BV[0-9A-Za-z]{10})\/?$/);
+            const match = url.pathname.match(
+                /^\/video\/(BV[0-9A-Za-z]{10})\/?$/
+            );
             const page = url.searchParams.get('p') || '1';
-            if (match && /^[1-9]\d*$/.test(page) && Number.isSafeInteger(Number(page))) {
+            if (
+                match &&
+                /^[1-9]\d*$/.test(page) &&
+                Number.isSafeInteger(Number(page))
+            ) {
                 return `bilibili:${match[1]}:p${Number(page)}`;
             }
         }
@@ -241,18 +313,25 @@ export const extractLocalContentKey = (rawUrl: string, downloader: string): stri
  * 将个人主页嵌套弹层链接规范化为标准笔记链接
  * 规范化过程中必须完整保留原有查询参数
  */
-export const normalizeXhsNoteUrl = (rawUrl: string): { noteId: string; url: string } | null => {
+export const normalizeXhsNoteUrl = (
+    rawUrl: string
+): { noteId: string; url: string } | null => {
     try {
         const parsed = new URL(rawUrl, 'https://www.xiaohongshu.com');
-        if (parsed.hostname !== 'www.xiaohongshu.com' && parsed.hostname !== 'xiaohongshu.com') {
+        if (
+            parsed.hostname !== 'www.xiaohongshu.com' &&
+            parsed.hostname !== 'xiaohongshu.com'
+        ) {
             return null;
         }
 
-        const exploreMatch = parsed.pathname.match(/^\/(?:explore|discovery\/item)\/([a-f\d]{24})\/?$/i);
+        const exploreMatch = parsed.pathname.match(
+            /^\/(?:explore|discovery\/item)\/([a-f\d]{24})\/?$/i
+        );
         if (exploreMatch) {
             return {
                 noteId: exploreMatch[1].toLowerCase(),
-                url: parsed.toString(),
+                url: parsed.toString()
             };
         }
 
@@ -261,13 +340,15 @@ export const normalizeXhsNoteUrl = (rawUrl: string): { noteId: string; url: stri
         );
         if (profileMatch) {
             const noteId = profileMatch[1].toLowerCase();
-            const canonical = new URL(`https://www.xiaohongshu.com/explore/${noteId}`);
+            const canonical = new URL(
+                `https://www.xiaohongshu.com/explore/${noteId}`
+            );
             parsed.searchParams.forEach((value, key) => {
                 canonical.searchParams.set(key, value);
             });
             return {
                 noteId,
-                url: canonical.toString(),
+                url: canonical.toString()
             };
         }
     } catch {
@@ -291,7 +372,7 @@ export const unescapeMediaUrl = (url: string): string => {
 export const encodeLiveCachedUrl = (cover: string, video: string): string => {
     const payload = {
         cover: unescapeMediaUrl(cover),
-        video: unescapeMediaUrl(video || ''),
+        video: unescapeMediaUrl(video || '')
     };
     return `${LIVE_CACHE_PREFIX}${JSON.stringify(payload)}`;
 };
@@ -300,7 +381,9 @@ export const encodeLiveCachedUrl = (cover: string, video: string): string => {
  * 解码实况图片缓存特征数组为成对数据结构
  * 任一项数据格式异常则返回 null, 从而触发实时降级解析
  */
-export const decodeLiveCachedUrls = (cachedUrls: string[]): LivePhotoMediaItem[] | null => {
+export const decodeLiveCachedUrls = (
+    cachedUrls: string[]
+): LivePhotoMediaItem[] | null => {
     if (!Array.isArray(cachedUrls) || cachedUrls.length === 0) {
         return null;
     }
@@ -312,12 +395,20 @@ export const decodeLiveCachedUrls = (cachedUrls: string[]): LivePhotoMediaItem[]
         const jsonPart = item.slice(LIVE_CACHE_PREFIX.length);
         try {
             const parsed = JSON.parse(jsonPart);
-            if (!parsed || typeof parsed !== 'object' || typeof parsed.cover !== 'string' || !parsed.cover) {
+            if (
+                !parsed ||
+                typeof parsed !== 'object' ||
+                typeof parsed.cover !== 'string' ||
+                !parsed.cover
+            ) {
                 return null;
             }
             result.push({
                 cover: unescapeMediaUrl(parsed.cover),
-                video: typeof parsed.video === 'string' ? unescapeMediaUrl(parsed.video) : '',
+                video:
+                    typeof parsed.video === 'string'
+                        ? unescapeMediaUrl(parsed.video)
+                        : ''
             });
         } catch {
             return null;
@@ -331,7 +422,9 @@ export const decodeLiveCachedUrls = (cachedUrls: string[]): LivePhotoMediaItem[]
  * 校验路径特征, 排除源站原始 CDN 临时直链
  */
 export const isConfirmableS3CachedUrl = (rawUrl: string): boolean => {
-    if (!rawUrl || typeof rawUrl !== 'string') { return false; }
+    if (!rawUrl || typeof rawUrl !== 'string') {
+        return false;
+    }
     try {
         const u = new URL(unescapeMediaUrl(rawUrl));
         const host = u.hostname.toLowerCase();
@@ -356,7 +449,7 @@ export const isConfirmableS3CachedUrl = (rawUrl: string): boolean => {
             'bilivideo.com',
             'hdslb.com',
             'miyoushe.com',
-            'hoyolab.com',
+            'hoyolab.com'
         ];
         if (rawOriginHosts.some(d => host === d || host.endsWith(`.${d}`))) {
             return false;
@@ -371,7 +464,10 @@ export const isConfirmableS3CachedUrl = (rawUrl: string): boolean => {
  * 校验预热响应结果是否完整写入对象存储
  * 任何资源未进入缓存均标记为未达成预热
  */
-export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: AllDownloaderType): {
+export const verifyPreheatCacheResult = (
+    mediaUrls: unknown[],
+    downloaderType: AllDownloaderType
+): {
     confirmed: boolean;
     cachedUrls: string[];
     unconfirmedCount: number;
@@ -379,10 +475,10 @@ export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: A
 } => {
     if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) {
         return {
-            confirmed: false,
             cachedUrls: [],
-            unconfirmedCount: 0,
+            confirmed: false,
             reason: '未提取到任何图片或视频链接',
+            unconfirmedCount: 0
         };
     }
 
@@ -393,21 +489,30 @@ export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: A
         for (const item of mediaUrls) {
             if (!item || typeof item !== 'object') {
                 return {
-                    confirmed: false,
                     cachedUrls: [],
-                    unconfirmedCount: mediaUrls.length,
+                    confirmed: false,
                     reason: '实况图片预热响应格式异常',
+                    unconfirmedCount: mediaUrls.length
                 };
             }
-            const obj = item as { cover?: string | null; video?: string | null };
-            const cover = typeof obj.cover === 'string' ? unescapeMediaUrl(obj.cover) : '';
-            const video = typeof obj.video === 'string' ? unescapeMediaUrl(obj.video) : '';
+            const obj = item as {
+                cover?: string | null;
+                video?: string | null;
+            };
+            const cover =
+                typeof obj.cover === 'string'
+                    ? unescapeMediaUrl(obj.cover)
+                    : '';
+            const video =
+                typeof obj.video === 'string'
+                    ? unescapeMediaUrl(obj.video)
+                    : '';
             if (!cover) {
                 return {
-                    confirmed: false,
                     cachedUrls: [],
-                    unconfirmedCount: mediaUrls.length,
+                    confirmed: false,
                     reason: '实况图片缺少封面链接',
+                    unconfirmedCount: mediaUrls.length
                 };
             }
             const coverCached = isConfirmableS3CachedUrl(cover);
@@ -421,10 +526,10 @@ export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: A
         for (const item of mediaUrls) {
             if (typeof item !== 'string' || !item) {
                 return {
-                    confirmed: false,
                     cachedUrls: [],
-                    unconfirmedCount: mediaUrls.length,
+                    confirmed: false,
                     reason: '预热响应包含无效的资源链接',
+                    unconfirmedCount: mediaUrls.length
                 };
             }
             const clean = unescapeMediaUrl(item);
@@ -437,17 +542,17 @@ export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: A
 
     if (unconfirmedCount > 0) {
         return {
-            confirmed: false,
             cachedUrls: [],
-            unconfirmedCount,
+            confirmed: false,
             reason: `服务端返回了原始直链（${unconfirmedCount}/${mediaUrls.length} 个资源未写入对象存储，请检查服务端 S3 配置或网络状态）`,
+            unconfirmedCount
         };
     }
 
     return {
-        confirmed: true,
         cachedUrls,
-        unconfirmedCount: 0,
+        confirmed: true,
+        unconfirmedCount: 0
     };
 };
 
@@ -455,7 +560,10 @@ export const verifyPreheatCacheResult = (mediaUrls: unknown[], downloaderType: A
  * 推断媒体文件的扩展名
  * 若链接无法推断或不受支持则使用安全备选项
  */
-export const inferFileExtension = (mediaUrl: string, fallback: 'jpg' | 'mp4'): string => {
+export const inferFileExtension = (
+    mediaUrl: string,
+    fallback: 'jpg' | 'mp4'
+): string => {
     try {
         const u = new URL(mediaUrl);
         const pathname = u.pathname;
@@ -466,7 +574,20 @@ export const inferFileExtension = (mediaUrl: string, fallback: 'jpg' | 'mp4'): s
                 .slice(dotIndex + 1)
                 .toLowerCase()
                 .replace(/[^a-z0-9]/g, '');
-            if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'avif', 'mp4', 'mov', 'm4v'].includes(ext)) {
+            if (
+                [
+                    'jpg',
+                    'jpeg',
+                    'png',
+                    'webp',
+                    'gif',
+                    'heic',
+                    'avif',
+                    'mp4',
+                    'mov',
+                    'm4v'
+                ].includes(ext)
+            ) {
                 return ext;
             }
         }
@@ -488,14 +609,22 @@ export const buildMediaFilename = (options: {
     mediaUrl: string;
     role?: 'image' | 'video' | 'live-cover' | 'live-video';
 }): string => {
-    const { sourceUrl, downloaderType, mediaIndex, totalCount, mediaUrl, role } = options;
+    const {
+        downloaderType,
+        mediaIndex,
+        mediaUrl,
+        role,
+        sourceUrl,
+        totalCount
+    } = options;
     const localKey = extractLocalContentKey(sourceUrl, downloaderType);
     let noteTag = localKey ? localKey.replace(':', '-') : '';
     if (!noteTag) {
         // 尝试从短链接或路径尾部提取标识符
         try {
             const u = new URL(sourceUrl);
-            const seg = u.pathname.replace(/\/+$/, '').split('/').pop() || 'item';
+            const seg =
+                u.pathname.replace(/\/+$/, '').split('/').pop() || 'item';
             noteTag = `xhs-${seg.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24) || 'media'}`;
         } catch {
             noteTag = 'xhs-media';

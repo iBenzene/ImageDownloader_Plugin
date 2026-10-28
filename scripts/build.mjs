@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
-const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+const pkg = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')
+);
 
 const userscriptHeader = `// ==UserScript==
 // @name         苯苯存图
@@ -45,17 +47,17 @@ if (!fs.existsSync(distDir)) {
 const outfile = path.join(distDir, 'benben-image-downloader.user.js');
 
 await esbuild.build({
-    entryPoints: [path.join(rootDir, 'src', 'index.ts')],
-    bundle: true,
-    format: 'iife',
-    target: ['es2022'],
-    outfile,
     banner: {
-        js: userscriptHeader,
+        js: userscriptHeader
     },
+    bundle: true,
     charset: 'utf8',
+    entryPoints: [path.join(rootDir, 'src', 'index.ts')],
+    format: 'iife',
     legalComments: 'none',
     minify: false,
+    outfile,
+    target: ['es2022']
 });
 
 const stat = fs.statSync(outfile);

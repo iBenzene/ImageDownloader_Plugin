@@ -7,9 +7,7 @@
 
 /** 服务端既有下载器名称, 对应固定的平台处理器 */
 export type XhsDownloaderType =
-    | '小红书图片下载器'
-    | '小红书实况图片下载器'
-    | '小红书视频下载器';
+    '小红书图片下载器' | '小红书实况图片下载器' | '小红书视频下载器';
 
 export type AllDownloaderType =
     | XhsDownloaderType
@@ -27,11 +25,11 @@ export type SavedLinkStatus = 'none' | 'success' | 'failure';
 
 /** 资源预热状态, 涵盖本地操作流程与远端已有缓存标识 */
 export type PreheatState =
-    | 'unpreheated'    // 尚未触发预热
-    | 'preheating'     // 正在请求服务端预热并缓存至对象存储
-    | 'preheated'      // 本机预热成功并写入对象存储
-    | 'cached_remote'  // 其他客户端同步而来的有效云端缓存
-    | 'failed';        // 预热流程失败
+    | 'unpreheated' // 尚未触发预热
+    | 'preheating' // 正在请求服务端预热并缓存至对象存储
+    | 'preheated' // 本机预热成功并写入对象存储
+    | 'cached_remote' // 其他客户端同步而来的有效云端缓存
+    | 'failed'; // 预热流程失败
 
 /** 本地收藏记录模型, 对齐 iOS SavedLinkItem */
 export interface SavedLinkItem {
@@ -134,7 +132,7 @@ export enum LogLevel {
     Debug = 0,
     Info = 1,
     Warn = 2,
-    Error = 3,
+    Error = 3
 }
 
 export interface LogEntry {
@@ -176,7 +174,13 @@ export interface MediaSubTask {
     isLiveCover?: boolean;
     isLiveVideo?: boolean;
     pairIndex?: number; // 实况所属成对组编号
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+    status:
+        | 'pending'
+        | 'running'
+        | 'completed'
+        | 'failed'
+        | 'cancelled'
+        | 'interrupted';
     progressPercent?: number;
     error?: string;
 }

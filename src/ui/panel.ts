@@ -14,11 +14,16 @@ import {
     PageNoteContext,
     PluginSettings,
     TaskType,
-    XhsDownloaderType,
+    XhsDownloaderType
 } from '../types';
 import { extractUrlsFromInput, isXhsDownloader } from '../utils';
 import { xhsPageAdapter } from '../xhsPageAdapter';
-import { EntryPositionState, observeEntryPosition, positionEntryBar, resetEntryPosition } from './entryPosition';
+import {
+    EntryPositionState,
+    observeEntryPosition,
+    positionEntryBar,
+    resetEntryPosition
+} from './entryPosition';
 import {
     escapeHtml,
     formatTaskTitle,
@@ -29,7 +34,7 @@ import {
     renderSavedItemBadges,
     renderTaskStatusBadge,
     renderTaskTypeLabel,
-    renderTypePillsHtml,
+    renderTypePillsHtml
 } from './helpers';
 import { SHADOW_STYLES } from './styles';
 
@@ -72,8 +77,12 @@ export class BenbenPluginUI {
     } | null = null;
 
     public init(): void {
-        if (typeof document === 'undefined') { return; }
-        if (document.getElementById('benben-xhs-host')) { return; }
+        if (typeof document === 'undefined') {
+            return;
+        }
+        if (document.getElementById('benben-xhs-host')) {
+            return;
+        }
 
         this.hostEl = document.createElement('div');
         this.hostEl.id = 'benben-xhs-host';
@@ -104,11 +113,14 @@ export class BenbenPluginUI {
     }
 
     private detectTheme(): void {
-        if (!this.hostEl) { return; }
+        if (!this.hostEl) {
+            return;
+        }
         const isDark =
             document.documentElement.getAttribute('data-theme') === 'dark' ||
             document.body.classList.contains('dark') ||
-            (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+            (typeof window !== 'undefined' &&
+                window.matchMedia?.('(prefers-color-scheme: dark)').matches);
         if (isDark) {
             this.hostEl.setAttribute('data-theme', 'dark');
         } else {
@@ -117,8 +129,15 @@ export class BenbenPluginUI {
     }
 
     private detectPlatform(): string {
-        const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-        if (host.includes('xiaohongshu.com') || host.includes('xhslink.com') || host.includes('xhslink.cn')) {
+        const host =
+            typeof window !== 'undefined'
+                ? window.location.hostname.toLowerCase()
+                : '';
+        if (
+            host.includes('xiaohongshu.com') ||
+            host.includes('xhslink.com') ||
+            host.includes('xhslink.cn')
+        ) {
             return 'xhs';
         }
         if (host.includes('weibo.com') || host.includes('weibo.cn')) {
@@ -141,8 +160,12 @@ export class BenbenPluginUI {
 
     private bindEvents(): void {
         const captureSettings = (e: Event) => {
-            const form = (e.target as HTMLElement).closest<HTMLFormElement>('form[data-form="settings"]');
-            if (!form) { return; }
+            const form = (e.target as HTMLElement).closest<HTMLFormElement>(
+                'form[data-form="settings"]'
+            );
+            if (!form) {
+                return;
+            }
             this.settingsDraft = this.readSettingsForm(form);
             this.settingsSaved = false;
             this.diagnosticResult = null;
@@ -151,7 +174,9 @@ export class BenbenPluginUI {
         this.shadowRoot?.addEventListener('change', captureSettings);
         this.shadowRoot?.addEventListener('submit', e => {
             const form = e.target as HTMLFormElement;
-            if (!form.matches('form[data-form="settings"]')) { return; }
+            if (!form.matches('form[data-form="settings"]')) {
+                return;
+            }
             e.preventDefault();
             const settings = this.readSettingsForm(form);
             this.settingsDraft = settings;
@@ -166,17 +191,29 @@ export class BenbenPluginUI {
                     this.closePanel();
                 }
             });
-            window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
-                this.detectTheme();
-                if (this.hostEl && !this.hostEl.hasAttribute('data-platform')) {
-                    this.hostEl.setAttribute('data-platform', this.detectPlatform());
-                }
-            });
+            window
+                .matchMedia?.('(prefers-color-scheme: dark)')
+                .addEventListener('change', () => {
+                    this.detectTheme();
+                    if (
+                        this.hostEl &&
+                        !this.hostEl.hasAttribute('data-platform')
+                    ) {
+                        this.hostEl.setAttribute(
+                            'data-platform',
+                            this.detectPlatform()
+                        );
+                    }
+                });
         }
 
         this.shadowRoot?.addEventListener('click', e => {
-            const target = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
-            if (!target) { return; }
+            const target = (e.target as HTMLElement).closest(
+                '[data-action]'
+            ) as HTMLElement | null;
+            if (!target) {
+                return;
+            }
             const action = target.getAttribute('data-action');
             this.handleAction(action, target);
         });
@@ -186,13 +223,14 @@ export class BenbenPluginUI {
         const data = new FormData(form);
         return {
             ...storage.getSettings(),
-            serverUrl: String(data.get('serverUrl') ?? '').trim(),
-            serverToken: String(data.get('serverToken') ?? '').trim(),
-            serverSideProxy: data.has('serverSideProxy'),
-            preheatResources: data.has('preheatResources'),
+            defaultAction:
+                data.get('defaultAction') === 'save' ? 'save' : 'download',
             incrementalSync: data.has('incrementalSync'),
-            defaultAction: data.get('defaultAction') === 'save' ? 'save' : 'download',
             logDisplayLevel: Number(data.get('logDisplayLevel')) as LogLevel,
+            preheatResources: data.has('preheatResources'),
+            serverSideProxy: data.has('serverSideProxy'),
+            serverToken: String(data.get('serverToken') ?? '').trim(),
+            serverUrl: String(data.get('serverUrl') ?? '').trim()
         };
     }
 
@@ -213,16 +251,23 @@ export class BenbenPluginUI {
     }
 
     private render(): void {
-        if (!this.shadowRoot) { return; }
+        if (!this.shadowRoot) {
+            return;
+        }
         const container = this.shadowRoot.querySelector('.bb-container');
-        if (!container) { return; }
+        if (!container) {
+            return;
+        }
 
         this.detectTheme();
         if (this.hostEl && !this.hostEl.hasAttribute('data-platform')) {
             this.hostEl.setAttribute('data-platform', this.detectPlatform());
         }
         const ctx = xhsPageAdapter.getCurrentContext();
-        resetEntryPosition(this.entryPosition, ctx ? `${ctx.noteId}:${ctx.viewMode}` : undefined);
+        resetEntryPosition(
+            this.entryPosition,
+            ctx ? `${ctx.noteId}:${ctx.viewMode}` : undefined
+        );
         const settings = storage.getSettings();
         const syncStatus = syncCoordinator.getSyncStatus();
 
@@ -235,11 +280,18 @@ export class BenbenPluginUI {
       ${panelHtml}
     `;
         const bar = container.querySelector<HTMLElement>('.bb-entry-bar');
-        if (bar && !bar.hidden) { positionEntryBar(bar, document, window, this.entryPosition); }
+        if (bar && !bar.hidden) {
+            positionEntryBar(bar, document, window, this.entryPosition);
+        }
     }
 
-    private renderEntryBar(ctx: PageNoteContext | null, settings: PluginSettings): string {
-        if (!ctx) { return '<div class="bb-entry-bar" hidden></div>'; }
+    private renderEntryBar(
+        ctx: PageNoteContext | null,
+        settings: PluginSettings
+    ): string {
+        if (!ctx) {
+            return '<div class="bb-entry-bar" hidden></div>';
+        }
 
         const effectiveType = xhsPageAdapter.getEffectiveDownloader(ctx);
         const needsChoice = !effectiveType;
@@ -248,13 +300,19 @@ export class BenbenPluginUI {
         const isPrimaryDownload = settings.defaultAction === 'download';
         const primaryLabel = isPrimaryDownload ? '下载媒体' : '收藏链接';
         const secondaryLabel = isPrimaryDownload ? '收藏' : '下载';
-        const primaryAction = isPrimaryDownload ? 'entry-download' : 'entry-save';
-        const secondaryAction = isPrimaryDownload ? 'entry-save' : 'entry-download';
+        const primaryAction = isPrimaryDownload
+            ? 'entry-download'
+            : 'entry-save';
+        const secondaryAction = isPrimaryDownload
+            ? 'entry-save'
+            : 'entry-download';
 
         const activeTask = taskQueue.getActiveTaskForUrl(ctx.url);
         const latestTask = activeTask ?? taskQueue.getLatestTaskForUrl(ctx.url);
         const isPreparingSave = this.preparingSaveUrls.has(ctx.url);
-        const hasPendingDuplicate = Boolean(this.duplicatePrompt?.urls.includes(ctx.url));
+        const hasPendingDuplicate = Boolean(
+            this.duplicatePrompt?.urls.includes(ctx.url)
+        );
         const taskRunning = Boolean(activeTask) || isPreparingSave;
 
         let statusMsg = ctx.detectionReason;
@@ -271,7 +329,9 @@ export class BenbenPluginUI {
         } else if (latestTask) {
             statusMsg = formatTaskMessage(latestTask) || ctx.detectionReason;
             if (latestTask.status === 'completed') {
-                statusClass = latestTask.identityCheckIncomplete ? 'is-warn' : 'is-ok';
+                statusClass = latestTask.identityCheckIncomplete
+                    ? 'is-warn'
+                    : 'is-ok';
             } else if (latestTask.status === 'failed') {
                 statusClass = 'is-error';
             } else if (latestTask.status === 'interrupted') {
@@ -313,15 +373,20 @@ export class BenbenPluginUI {
         settings: PluginSettings,
         syncStatus: ReturnType<typeof syncCoordinator.getSyncStatus>
     ): string {
-        const isDirty = syncStatus.dirtySavedCount > 0 || syncStatus.dirtyHistoryCount > 0;
-        const syncPillClass = syncStatus.lastError ? 'is-error' : isDirty ? 'is-dirty' : '';
+        const isDirty =
+            syncStatus.dirtySavedCount > 0 || syncStatus.dirtyHistoryCount > 0;
+        const syncPillClass = syncStatus.lastError
+            ? 'is-error'
+            : isDirty
+              ? 'is-dirty'
+              : '';
         const syncPillText = syncStatus.isSyncing
             ? '同步中...'
             : syncStatus.lastError
-                ? '同步失败'
-                : isDirty
-                    ? `待同步（${syncStatus.dirtySavedCount + syncStatus.dirtyHistoryCount}）`
-                    : '已同步';
+              ? '同步失败'
+              : isDirty
+                ? `待同步（${syncStatus.dirtySavedCount + syncStatus.dirtyHistoryCount}）`
+                : '已同步';
 
         let contentHtml = '';
         switch (this.activeTab) {
@@ -384,7 +449,9 @@ export class BenbenPluginUI {
     }
 
     private renderCurrentBox(ctx: PageNoteContext | null): string {
-        const batchToggleText = this.showBatchInput ? '收起批量' : '手动输入/批量';
+        const batchToggleText = this.showBatchInput
+            ? '收起批量'
+            : '手动输入/批量';
         const noteRow = ctx
             ? `
         <div class="bb-current-row">
@@ -430,7 +497,9 @@ export class BenbenPluginUI {
     }
 
     private renderConfirmationModal(): string {
-        if (!this.confirmationModal) { return ''; }
+        if (!this.confirmationModal) {
+            return '';
+        }
         const warnHtml = this.confirmationModal.impactWarning
             ? `<div style="font-size: 11px; opacity: 0.9;">⚠️ ${escapeHtml(this.confirmationModal.impactWarning)}</div>`
             : '';
@@ -449,7 +518,9 @@ export class BenbenPluginUI {
     }
 
     private renderDuplicatePrompt(): string {
-        if (!this.duplicatePrompt) { return ''; }
+        if (!this.duplicatePrompt) {
+            return '';
+        }
         const incHtml = this.duplicatePrompt.incomplete
             ? '<div style="font-size: 11px;">⚠️ 部分链接未能完成重复检查，可能存在重复。</div>'
             : '';
@@ -472,36 +543,42 @@ export class BenbenPluginUI {
         const kw = this.savedKeyword.toLowerCase();
         const filtered = this.savedKeyword
             ? all.filter(
-                i =>
-                    i.url.toLowerCase().includes(kw) ||
-                    Boolean(i.contentKey && i.contentKey.includes(this.savedKeyword))
-            )
+                  i =>
+                      i.url.toLowerCase().includes(kw) ||
+                      Boolean(
+                          i.contentKey &&
+                          i.contentKey.includes(this.savedKeyword)
+                      )
+              )
             : all;
 
         const cardsHtml =
             filtered.length === 0
                 ? '<div class="bb-empty">暂无收藏记录</div>'
                 : filtered
-                    .map(item => {
-                        const badges = renderSavedItemBadges(item);
-                        const supported = isXhsDownloader(item.downloaderType);
-                        const safeUrl = escapeHtml(item.url);
-                        const resetBtn =
-                            item.status !== 'none'
-                                ? '<button type="button" class="bb-btn bb-btn-sm" data-action="reset-saved-status" ' +
-                                  `data-id="${item.id}" title="重置下载状态为未下载">重置</button>`
-                                : '';
-                        const preheatBtn =
-                            supported && (!item.cachedUrls || item.cachedUrls.length === 0)
-                                ? '<button type="button" class="bb-btn bb-btn-sm" data-action="preheat-saved-item" ' +
-                                  `data-id="${item.id}" title="提前将图片或视频缓存到服务端。">预热</button>`
-                                : '';
-                        const downloadBtn = supported
-                            ? '<button type="button" class="bb-btn bb-btn-sm" ' +
-                              `data-action="download-saved-item" data-id="${item.id}">下载</button>`
-                            : '';
+                      .map(item => {
+                          const badges = renderSavedItemBadges(item);
+                          const supported = isXhsDownloader(
+                              item.downloaderType
+                          );
+                          const safeUrl = escapeHtml(item.url);
+                          const resetBtn =
+                              item.status !== 'none'
+                                  ? '<button type="button" class="bb-btn bb-btn-sm" data-action="reset-saved-status" ' +
+                                    `data-id="${item.id}" title="重置下载状态为未下载">重置</button>`
+                                  : '';
+                          const preheatBtn =
+                              supported &&
+                              (!item.cachedUrls || item.cachedUrls.length === 0)
+                                  ? '<button type="button" class="bb-btn bb-btn-sm" data-action="preheat-saved-item" ' +
+                                    `data-id="${item.id}" title="提前将图片或视频缓存到服务端。">预热</button>`
+                                  : '';
+                          const downloadBtn = supported
+                              ? '<button type="button" class="bb-btn bb-btn-sm" ' +
+                                `data-action="download-saved-item" data-id="${item.id}">下载</button>`
+                              : '';
 
-                        return `
+                          return `
                 <div class="bb-card">
                   <div class="bb-card-top">
                     <div class="bb-card-url" title="${safeUrl}">${safeUrl}</div>
@@ -523,8 +600,8 @@ export class BenbenPluginUI {
                   </div>
                 </div>
               `;
-                    })
-                    .join('');
+                      })
+                      .join('');
 
         return `
       <div class="bb-toolbar">
@@ -547,51 +624,59 @@ export class BenbenPluginUI {
             tasks.length === 0
                 ? '<div class="bb-empty">暂无任务</div>'
                 : tasks
-                    .map(task => {
-                        const statusBadge = renderTaskStatusBadge(task);
-                        const typeLabel = renderTaskTypeLabel(task.type);
-                        const cancelBtn =
-                            task.status === 'pending' || task.status === 'running'
-                                ? '<button type="button" class="bb-btn bb-btn-sm" ' +
-                                  `data-action="cancel-task" data-id="${task.id}">取消</button>`
-                                : '';
-                        const retryBtn =
-                            task.status === 'failed' || task.status === 'cancelled' || task.status === 'interrupted'
-                                ? '<button type="button" class="bb-btn bb-btn-sm" ' +
-                                  `data-action="retry-task" data-id="${task.id}">重试</button>`
-                                : '';
-                        const reExtractBtn =
-                            (task.status === 'failed' || task.status === 'interrupted') && task.type === 'download'
-                                ? '<button type="button" class="bb-btn bb-btn-sm" data-action="retry-task-reextract" ' +
-                                  `data-id="${task.id}" title="忽略缓存重新解析重试">重新解析</button>`
-                                : '';
+                      .map(task => {
+                          const statusBadge = renderTaskStatusBadge(task);
+                          const typeLabel = renderTaskTypeLabel(task.type);
+                          const cancelBtn =
+                              task.status === 'pending' ||
+                              task.status === 'running'
+                                  ? '<button type="button" class="bb-btn bb-btn-sm" ' +
+                                    `data-action="cancel-task" data-id="${task.id}">取消</button>`
+                                  : '';
+                          const retryBtn =
+                              task.status === 'failed' ||
+                              task.status === 'cancelled' ||
+                              task.status === 'interrupted'
+                                  ? '<button type="button" class="bb-btn bb-btn-sm" ' +
+                                    `data-action="retry-task" data-id="${task.id}">重试</button>`
+                                  : '';
+                          const reExtractBtn =
+                              (task.status === 'failed' ||
+                                  task.status === 'interrupted') &&
+                              task.type === 'download'
+                                  ? '<button type="button" class="bb-btn bb-btn-sm" data-action="retry-task-reextract" ' +
+                                    `data-id="${task.id}" title="忽略缓存重新解析重试">重新解析</button>`
+                                  : '';
 
-                        const subtasksHtml =
-                            task.mediaSubTasks && task.mediaSubTasks.length > 0
-                                ? `
+                          const subtasksHtml =
+                              task.mediaSubTasks &&
+                              task.mediaSubTasks.length > 0
+                                  ? `
                     <div class="bb-subtask-list">
                       ${task.mediaSubTasks
-        .map(st => {
-            const stText =
-                st.status === 'completed'
-                    ? '✓ 完成'
-                    : st.status === 'running'
-                        ? `${st.progressPercent || 0}%`
-                        : escapeHtml(st.error || st.status);
-            return `
+                          .map(st => {
+                              const stText =
+                                  st.status === 'completed'
+                                      ? '✓ 完成'
+                                      : st.status === 'running'
+                                        ? `${st.progressPercent || 0}%`
+                                        : escapeHtml(st.error || st.status);
+                              return `
                         <div class="bb-subtask-item">
                           <span>${escapeHtml(st.label)}</span>
                           <span>${stText}</span>
                         </div>
                       `;
-        })
-        .join('')}
+                          })
+                          .join('')}
                     </div>
                   `
-                                : '';
+                                  : '';
 
-                        const pfClass = getPlatformBadgeClass(task.downloaderType);
-                        return `
+                          const pfClass = getPlatformBadgeClass(
+                              task.downloaderType
+                          );
+                          return `
                 <div class="bb-card">
                   <div class="bb-card-top">
                     <div style="font-weight: 600; font-size: 12.5px;">${escapeHtml(formatTaskTitle(task.title))}</div>
@@ -617,8 +702,8 @@ export class BenbenPluginUI {
                   </div>
                 </div>
               `;
-                    })
-                    .join('');
+                      })
+                      .join('');
 
         return `
       <div class="bb-toolbar">
@@ -638,22 +723,28 @@ export class BenbenPluginUI {
     private renderHistoryTab(): string {
         const all = historyManager.getVisibleItems();
         const filtered = this.historyKeyword
-            ? all.filter(i => i.url.toLowerCase().includes(this.historyKeyword.toLowerCase()))
+            ? all.filter(i =>
+                  i.url
+                      .toLowerCase()
+                      .includes(this.historyKeyword.toLowerCase())
+              )
             : all;
 
         const cardsHtml =
             filtered.length === 0
                 ? '<div class="bb-empty">暂无下载历史</div>'
                 : filtered
-                    .map(item => {
-                        const resBadge = item.isSuccess
-                            ? `<span class="bb-badge bb-badge-ok">成功 (${item.mediaCount})</span>`
-                            : '<span class="bb-badge bb-badge-error">失败</span>';
-                        const safeUrl = escapeHtml(item.url);
-                        const safeDl = escapeHtml(item.downloaderType);
-                        const pfClass = getPlatformBadgeClass(item.downloaderType);
+                      .map(item => {
+                          const resBadge = item.isSuccess
+                              ? `<span class="bb-badge bb-badge-ok">成功 (${item.mediaCount})</span>`
+                              : '<span class="bb-badge bb-badge-error">失败</span>';
+                          const safeUrl = escapeHtml(item.url);
+                          const safeDl = escapeHtml(item.downloaderType);
+                          const pfClass = getPlatformBadgeClass(
+                              item.downloaderType
+                          );
 
-                        return `
+                          return `
                 <div class="bb-card">
                   <div class="bb-card-top">
                     <div class="bb-card-url" title="${safeUrl}">${safeUrl}</div>
@@ -677,8 +768,8 @@ export class BenbenPluginUI {
                   </div>
                 </div>
               `;
-                    })
-                    .join('');
+                      })
+                      .join('');
 
         return `
       <div class="bb-toolbar">
@@ -700,7 +791,9 @@ export class BenbenPluginUI {
                     .filter(item => item.status === 'error')
                     .map(item => item.detail)
                     .join('、') || '未知原因';
-            const statusColor = this.diagnosticResult.overallOk ? '--bb-success' : '--bb-danger';
+            const statusColor = this.diagnosticResult.overallOk
+                ? '--bb-success'
+                : '--bb-danger';
             const statusText = this.diagnosticResult.overallOk
                 ? '🎉 连接正常！'
                 : `❌ 连接异常（${escapeHtml(errDetails)}）`;
@@ -802,10 +895,10 @@ export class BenbenPluginUI {
             logs.length === 0
                 ? '<div class="bb-empty">暂无日志</div>'
                 : logs
-                    .map(e => {
-                        const badge = renderLogLevelBadge(e.level);
-                        const timeStr = formatRelativeDate(e.timestamp);
-                        return `
+                      .map(e => {
+                          const badge = renderLogLevelBadge(e.level);
+                          const timeStr = formatRelativeDate(e.timestamp);
+                          return `
                 <div class="bb-card bb-log-card">
                   <div class="bb-log-header">
                     <div class="bb-log-meta">${badge}<span class="bb-log-time">${timeStr}</span></div>
@@ -815,8 +908,8 @@ export class BenbenPluginUI {
                   ${e.context ? `<div class="bb-log-ctx">${escapeHtml(e.context)}</div>` : ''}
                 </div>
               `;
-                    })
-                    .join('');
+                      })
+                      .join('');
 
         return `
       <div class="bb-toolbar">
@@ -829,8 +922,13 @@ export class BenbenPluginUI {
     `;
     }
 
-    private async handleAction(action: string | null, target: HTMLElement): Promise<void> {
-        if (!action) { return; }
+    private async handleAction(
+        action: string | null,
+        target: HTMLElement
+    ): Promise<void> {
+        if (!action) {
+            return;
+        }
 
         if (action === 'close-panel') {
             this.closePanel();
@@ -844,7 +942,9 @@ export class BenbenPluginUI {
 
         if (action === 'nav-tab') {
             const tab = target.getAttribute('data-tab') as ActiveViewTab;
-            if (tab) { this.openPanel(tab); }
+            if (tab) {
+                this.openPanel(tab);
+            }
             return;
         }
 
@@ -854,8 +954,12 @@ export class BenbenPluginUI {
         }
 
         if (action === 'select-note-type') {
-            const dt = target.getAttribute('data-downloader') as XhsDownloaderType;
-            if (dt) { xhsPageAdapter.setManualDownloaderForCurrentNote(dt); }
+            const dt = target.getAttribute(
+                'data-downloader'
+            ) as XhsDownloaderType;
+            if (dt) {
+                xhsPageAdapter.setManualDownloaderForCurrentNote(dt);
+            }
             return;
         }
 
@@ -867,7 +971,9 @@ export class BenbenPluginUI {
 
         if (action === 'entry-download' || action === 'current-download') {
             const ctx = xhsPageAdapter.getCurrentContext();
-            if (!ctx) { return; }
+            if (!ctx) {
+                return;
+            }
             const downloader = xhsPageAdapter.getEffectiveDownloader(ctx);
             if (!downloader) {
                 this.openPanel();
@@ -875,50 +981,70 @@ export class BenbenPluginUI {
                 return;
             }
             taskQueue.enqueueTask({
-                type: 'download',
-                title: `下载：${ctx.title}`,
-                urls: [ctx.url],
                 downloaderType: downloader,
+                title: `下载：${ctx.title}`,
+                type: 'download',
+                urls: [ctx.url]
             });
             return;
         }
 
         if (action === 'entry-save' || action === 'current-save') {
             const ctx = xhsPageAdapter.getCurrentContext();
-            if (!ctx) { return; }
+            if (!ctx) {
+                return;
+            }
             const downloader = xhsPageAdapter.getEffectiveDownloader(ctx);
             if (!downloader) {
                 this.openPanel();
                 alert('无法确认当前笔记类型，请先选择「图片 / 视频 / 实况」');
                 return;
             }
-            await this.handleSaveFlow([ctx.url], downloader, `收藏：${ctx.title}`);
+            await this.handleSaveFlow(
+                [ctx.url],
+                downloader,
+                `收藏：${ctx.title}`
+            );
             return;
         }
 
-        if (action === 'submit-batch-save' || action === 'submit-batch-download') {
-            const textarea =
-                this.shadowRoot?.querySelector('[data-input="batch-text"]') as HTMLTextAreaElement | null;
-            const select =
-                this.shadowRoot?.querySelector('[data-input="batch-downloader"]') as HTMLSelectElement | null;
+        if (
+            action === 'submit-batch-save' ||
+            action === 'submit-batch-download'
+        ) {
+            const textarea = this.shadowRoot?.querySelector(
+                '[data-input="batch-text"]'
+            ) as HTMLTextAreaElement | null;
+            const select = this.shadowRoot?.querySelector(
+                '[data-input="batch-downloader"]'
+            ) as HTMLSelectElement | null;
             const text = textarea?.value || '';
-            const downloader = (select?.value || '小红书图片下载器') as XhsDownloaderType;
+            const downloader = (select?.value ||
+                '小红书图片下载器') as XhsDownloaderType;
             const extraction = extractUrlsFromInput(text, 'skipWithWarning');
             if (extraction.urls.length === 0) {
                 alert('未找到有效链接，请输入至少一行链接');
                 return;
             }
             if (action === 'submit-batch-save') {
-                await this.handleSaveFlow(extraction.urls, downloader, `批量收藏（${extraction.urls.length} 个链接）`);
-                if (textarea) { textarea.value = ''; }
+                await this.handleSaveFlow(
+                    extraction.urls,
+                    downloader,
+                    `批量收藏（${extraction.urls.length} 个链接）`
+                );
+                if (textarea) {
+                    textarea.value = '';
+                }
             } else {
                 taskQueue.enqueueTask({
-                    type: 'download',
-                    title: `批量下载（${extraction.urls.length} 个链接）`,
-                    urls: extraction.urls,
                     downloaderType: downloader,
+                    title: `批量下载（${extraction.urls.length} 个链接）`,
+                    type: 'download',
+                    urls: extraction.urls
                 });
-                if (textarea) { textarea.value = ''; }
+                if (textarea) {
+                    textarea.value = '';
+                }
             }
             return;
         }
@@ -926,13 +1052,15 @@ export class BenbenPluginUI {
         if (action === 'download-saved-item') {
             const id = target.getAttribute('data-id');
             const item = id ? savedLinksManager.getItemById(id) : null;
-            if (!item) { return; }
+            if (!item) {
+                return;
+            }
             taskQueue.enqueueTask({
-                type: 'download',
-                title: `下载收藏：${item.url.slice(0, 32)}...`,
-                urls: [item.url],
                 downloaderType: item.downloaderType,
                 savedLinkId: item.id,
+                title: `下载收藏：${item.url.slice(0, 32)}...`,
+                type: 'download',
+                urls: [item.url]
             });
             return;
         }
@@ -940,20 +1068,24 @@ export class BenbenPluginUI {
         if (action === 'preheat-saved-item') {
             const id = target.getAttribute('data-id');
             const item = id ? savedLinksManager.getItemById(id) : null;
-            if (!item) { return; }
+            if (!item) {
+                return;
+            }
             taskQueue.enqueueTask({
-                type: 'preheat',
-                title: `预热收藏：${item.url.slice(0, 32)}...`,
-                urls: [item.url],
                 downloaderType: item.downloaderType,
                 savedLinkId: item.id,
+                title: `预热收藏：${item.url.slice(0, 32)}...`,
+                type: 'preheat',
+                urls: [item.url]
             });
             return;
         }
 
         if (action === 'reset-saved-status') {
             const id = target.getAttribute('data-id');
-            if (id) { savedLinksManager.updateStatus(id, 'none'); }
+            if (id) {
+                savedLinksManager.updateStatus(id, 'none');
+            }
             return;
         }
 
@@ -961,14 +1093,18 @@ export class BenbenPluginUI {
             const id = target.getAttribute('data-id');
             if (id) {
                 this.confirmationModal = {
-                    title: '删除已收藏链接',
-                    message: '确定要删除此条收藏链接吗？',
-                    impactWarning: '此操作将通过云端同步影响其他客户端（如 iOS 端）。',
                     confirmText: '删除',
+                    impactWarning:
+                        '此操作将通过云端同步影响其他客户端（如 iOS 端）。',
+                    message: '确定要删除此条收藏链接吗？',
                     onConfirm: () => {
                         savedLinksManager.deleteItem(id);
-                        syncCoordinator.scheduleSync('delete_saved', 300, { savedLinks: true, history: false });
+                        syncCoordinator.scheduleSync('delete_saved', 300, {
+                            history: false,
+                            savedLinks: true
+                        });
                     },
+                    title: '删除已收藏链接'
                 };
                 this.render();
             }
@@ -977,14 +1113,18 @@ export class BenbenPluginUI {
 
         if (action === 'clear-all-saved') {
             this.confirmationModal = {
-                title: '清空所有已收藏链接',
-                message: '确定要清空全部收藏记录吗？此操作无法撤销。',
-                impactWarning: '此操作将通过云端同步删除其他客户端（如 iOS 端）的所有收藏！',
                 confirmText: '确认清空',
+                impactWarning:
+                    '此操作将通过云端同步删除其他客户端（如 iOS 端）的所有收藏！',
+                message: '确定要清空全部收藏记录吗？此操作无法撤销。',
                 onConfirm: () => {
                     savedLinksManager.clearAll();
-                    syncCoordinator.scheduleSync('clear_saved', 300, { savedLinks: true, history: false });
+                    syncCoordinator.scheduleSync('clear_saved', 300, {
+                        history: false,
+                        savedLinks: true
+                    });
                 },
+                title: '清空所有已收藏链接'
             };
             this.render();
             return;
@@ -993,18 +1133,22 @@ export class BenbenPluginUI {
         if (action === 'download-all-saved') {
             const itemsToDownload = savedLinksManager
                 .getVisibleItems()
-                .filter(i => i.status !== 'success' && isXhsDownloader(i.downloaderType));
+                .filter(
+                    i =>
+                        i.status !== 'success' &&
+                        isXhsDownloader(i.downloaderType)
+                );
             if (itemsToDownload.length === 0) {
                 alert('当前没有待下载的小红书收藏项');
                 return;
             }
             for (const item of itemsToDownload) {
                 taskQueue.enqueueTask({
-                    type: 'download',
-                    title: `下载收藏：${item.url.slice(0, 24)}...`,
-                    urls: [item.url],
                     downloaderType: item.downloaderType,
                     savedLinkId: item.id,
+                    title: `下载收藏：${item.url.slice(0, 24)}...`,
+                    type: 'download',
+                    urls: [item.url]
                 });
             }
             return;
@@ -1012,25 +1156,33 @@ export class BenbenPluginUI {
 
         if (action === 'cancel-task') {
             const id = target.getAttribute('data-id');
-            if (id) { taskQueue.cancelTask(id); }
+            if (id) {
+                taskQueue.cancelTask(id);
+            }
             return;
         }
 
         if (action === 'retry-task') {
             const id = target.getAttribute('data-id');
-            if (id) { taskQueue.retryTask(id, { onlyFailedSubTasks: true }); }
+            if (id) {
+                taskQueue.retryTask(id, { onlyFailedSubTasks: true });
+            }
             return;
         }
 
         if (action === 'retry-task-reextract') {
             const id = target.getAttribute('data-id');
-            if (id) { taskQueue.retryTask(id, { forceReExtract: true }); }
+            if (id) {
+                taskQueue.retryTask(id, { forceReExtract: true });
+            }
             return;
         }
 
         if (action === 'remove-task') {
             const id = target.getAttribute('data-id');
-            if (id) { taskQueue.removeTask(id); }
+            if (id) {
+                taskQueue.removeTask(id);
+            }
             return;
         }
 
@@ -1041,13 +1193,15 @@ export class BenbenPluginUI {
 
         if (action === 'redownload-history') {
             const url = target.getAttribute('data-url');
-            const dt = target.getAttribute('data-downloader') as XhsDownloaderType;
+            const dt = target.getAttribute(
+                'data-downloader'
+            ) as XhsDownloaderType;
             if (url && dt) {
                 taskQueue.enqueueTask({
-                    type: 'download',
-                    title: `重新下载：${url.slice(0, 24)}...`,
-                    urls: [url],
                     downloaderType: dt,
+                    title: `重新下载：${url.slice(0, 24)}...`,
+                    type: 'download',
+                    urls: [url]
                 });
             }
             return;
@@ -1057,21 +1211,27 @@ export class BenbenPluginUI {
             const id = target.getAttribute('data-id');
             if (id) {
                 historyManager.deleteItem(id);
-                syncCoordinator.scheduleSync('delete_history', 300, { savedLinks: false, history: true });
+                syncCoordinator.scheduleSync('delete_history', 300, {
+                    history: true,
+                    savedLinks: false
+                });
             }
             return;
         }
 
         if (action === 'clear-all-history') {
             this.confirmationModal = {
-                title: '清空下载历史',
-                message: '确定要清空全部下载历史吗？',
-                impactWarning: '此操作将通过云端同步清空其他客户端的历史记录。',
                 confirmText: '确认清空',
+                impactWarning: '此操作将通过云端同步清空其他客户端的历史记录。',
+                message: '确定要清空全部下载历史吗？',
                 onConfirm: () => {
                     historyManager.clearAll();
-                    syncCoordinator.scheduleSync('clear_history', 300, { savedLinks: false, history: true });
+                    syncCoordinator.scheduleSync('clear_history', 300, {
+                        history: true,
+                        savedLinks: false
+                    });
                 },
+                title: '清空下载历史'
             };
             this.render();
             return;
@@ -1113,16 +1273,24 @@ export class BenbenPluginUI {
         }
 
         if (action === 'run-diagnostics') {
-            if (this.isRunningDiagnostics) { return; }
-            const form = target.closest<HTMLFormElement>('form[data-form="settings"]');
-            if (!form) { return; }
+            if (this.isRunningDiagnostics) {
+                return;
+            }
+            const form = target.closest<HTMLFormElement>(
+                'form[data-form="settings"]'
+            );
+            if (!form) {
+                return;
+            }
             const settings = this.readSettingsForm(form);
             this.settingsDraft = settings;
             this.isRunningDiagnostics = true;
             this.render();
             try {
                 const result = await checkConnectionAndFeatures(settings);
-                if (this.settingsDraft === settings) { this.diagnosticResult = result; }
+                if (this.settingsDraft === settings) {
+                    this.diagnosticResult = result;
+                }
             } finally {
                 this.isRunningDiagnostics = false;
                 this.render();
@@ -1153,14 +1321,15 @@ export class BenbenPluginUI {
 
         if (action === 'proceed-duplicate-save') {
             if (this.duplicatePrompt) {
-                const { urls, downloader, resolvedKeys, incomplete } = this.duplicatePrompt;
+                const { downloader, incomplete, resolvedKeys, urls } =
+                    this.duplicatePrompt;
                 taskQueue.enqueueTask({
-                    type: 'save',
-                    title: `收藏（${urls.length} 个链接）`,
-                    urls,
                     downloaderType: downloader,
-                    resolvedContentKeys: resolvedKeys,
                     identityCheckIncomplete: incomplete,
+                    resolvedContentKeys: resolvedKeys,
+                    title: `收藏（${urls.length} 个链接）`,
+                    type: 'save',
+                    urls
                 });
             }
             this.duplicatePrompt = null;
@@ -1169,12 +1338,18 @@ export class BenbenPluginUI {
         }
     }
 
-    private async handleSaveFlow(urls: string[], downloader: XhsDownloaderType, title: string): Promise<void> {
+    private async handleSaveFlow(
+        urls: string[],
+        downloader: XhsDownloaderType,
+        title: string
+    ): Promise<void> {
         for (const u of urls) {
             this.preparingSaveUrls.add(u);
         }
         this.render();
-        let prep: Awaited<ReturnType<typeof savedLinksManager.prepareSaveLinks>>;
+        let prep: Awaited<
+            ReturnType<typeof savedLinksManager.prepareSaveLinks>
+        >;
         try {
             prep = await savedLinksManager.prepareSaveLinks(urls, downloader);
         } finally {
@@ -1184,26 +1359,29 @@ export class BenbenPluginUI {
         }
         if (prep.hasDuplicate) {
             const duplicateLines = prep.duplicates
-                .map(d => `• ${d.url}（${d.reason.includes('key') ? '相同笔记内容' : '相同链接'}）`)
+                .map(
+                    d =>
+                        `• ${d.url}（${d.reason.includes('key') ? '相同笔记内容' : '相同链接'}）`
+                )
                 .join('\n');
             this.duplicatePrompt = {
-                urls,
-                downloader,
                 details: duplicateLines,
+                downloader,
                 incomplete: prep.identityCheckIncomplete,
                 resolvedKeys: prep.resolvedContentKeys,
+                urls
             };
             this.openPanel('saved');
             return;
         }
 
         taskQueue.enqueueTask({
-            type: 'save',
-            title,
-            urls,
             downloaderType: downloader,
-            resolvedContentKeys: prep.resolvedContentKeys,
             identityCheckIncomplete: prep.identityCheckIncomplete,
+            resolvedContentKeys: prep.resolvedContentKeys,
+            title,
+            type: 'save',
+            urls
         });
     }
 }

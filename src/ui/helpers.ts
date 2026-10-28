@@ -2,10 +2,16 @@
 
 import { XHS_DOWNLOADERS } from '../constants';
 import { LogLevel, SavedLinkItem, TaskItem, XhsDownloaderType } from '../types';
-import { formatRelativeDate, getShortDownloaderName, isXhsDownloader } from '../utils';
+import {
+    formatRelativeDate,
+    getShortDownloaderName,
+    isXhsDownloader
+} from '../utils';
 
 export const escapeHtml = (str: string | undefined | null): string => {
-    if (!str) { return ''; }
+    if (!str) {
+        return '';
+    }
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -15,12 +21,18 @@ export const escapeHtml = (str: string | undefined | null): string => {
 };
 
 /** 兼容旧任务文案, 仅调整插件生成的前缀和已废弃提示 */
-export const formatTaskTitle = (title: string): string => title
-    .replace(/^(收藏|下载|下载收藏|预热收藏|重新下载):\s*/, '$1：')
-    .replace(/^(批量收藏|批量下载|预热收藏资源|收藏) \((\d+ 个链接)\)$/, '$1（$2）');
+export const formatTaskTitle = (title: string): string =>
+    title
+        .replace(/^(收藏|下载|下载收藏|预热收藏|重新下载):\s*/, '$1：')
+        .replace(
+            /^(批量收藏|批量下载|预热收藏资源|收藏) \((\d+ 个链接)\)$/,
+            '$1（$2）'
+        );
 
 export const formatTaskMessage = (task: TaskItem): string => {
-    if (task.type !== 'save' || task.status !== 'completed') { return task.message || ''; }
+    if (task.type !== 'save' || task.status !== 'completed') {
+        return task.message || '';
+    }
     const warning = task.identityCheckIncomplete
         ? '，部分新链接未能识别内容，已按链接收藏，可能存在重复'
         : '';
@@ -28,14 +40,33 @@ export const formatTaskMessage = (task: TaskItem): string => {
 };
 
 /** 根据平台类型匹配专属徽章样式类名 */
-export const getPlatformBadgeClass = (downloaderType: string | undefined | null): string => {
-    if (!downloaderType) { return 'bb-badge-platform-default'; }
-    if (downloaderType.includes('小红书')) { return 'bb-badge-platform-xhs'; }
-    if (downloaderType.includes('微博')) { return 'bb-badge-platform-wb'; }
-    if (downloaderType.includes('哔哩哔哩') || downloaderType.includes('bilibili')) { return 'bb-badge-platform-bili'; }
-    if (downloaderType.includes('Pixiv') || downloaderType.includes('pixiv')) { return 'bb-badge-platform-pixiv'; }
-    if (downloaderType.includes('Twitter') || downloaderType.includes('(X)')) { return 'bb-badge-platform-x'; }
-    if (downloaderType.includes('米游社')) { return 'bb-badge-platform-mys'; }
+export const getPlatformBadgeClass = (
+    downloaderType: string | undefined | null
+): string => {
+    if (!downloaderType) {
+        return 'bb-badge-platform-default';
+    }
+    if (downloaderType.includes('小红书')) {
+        return 'bb-badge-platform-xhs';
+    }
+    if (downloaderType.includes('微博')) {
+        return 'bb-badge-platform-wb';
+    }
+    if (
+        downloaderType.includes('哔哩哔哩') ||
+        downloaderType.includes('bilibili')
+    ) {
+        return 'bb-badge-platform-bili';
+    }
+    if (downloaderType.includes('Pixiv') || downloaderType.includes('pixiv')) {
+        return 'bb-badge-platform-pixiv';
+    }
+    if (downloaderType.includes('Twitter') || downloaderType.includes('(X)')) {
+        return 'bb-badge-platform-x';
+    }
+    if (downloaderType.includes('米游社')) {
+        return 'bb-badge-platform-mys';
+    }
     return 'bb-badge-platform-default';
 };
 
@@ -54,7 +85,8 @@ export const renderSavedItemBadges = (item: SavedLinkItem): string => {
         : '<span class="bb-badge" title="已与云端同步">已同步</span>';
 
     // 预热与云端缓存状态徽标
-    const hasCachedUrls = Array.isArray(item.cachedUrls) && item.cachedUrls.length > 0;
+    const hasCachedUrls =
+        Array.isArray(item.cachedUrls) && item.cachedUrls.length > 0;
     let preheatBadge = '<span class="bb-badge">未预热</span>';
     if (item.preheatState === 'preheating') {
         preheatBadge = '<span class="bb-badge bb-badge-warn">预热中...</span>';
@@ -63,12 +95,10 @@ export const renderSavedItemBadges = (item: SavedLinkItem): string => {
         preheatBadge = `<span class="bb-badge bb-badge-error" title="${errTip}">预热失败</span>`;
     } else if (item.preheatState === 'preheated' && hasCachedUrls) {
         const count = item.cachedUrls!.length;
-        preheatBadge =
-            `<span class="bb-badge bb-badge-info" title="已预热 ${count} 个资源">预热成功（${count}）</span>`;
+        preheatBadge = `<span class="bb-badge bb-badge-info" title="已预热 ${count} 个资源">预热成功（${count}）</span>`;
     } else if (hasCachedUrls) {
         const count = item.cachedUrls!.length;
-        preheatBadge =
-            `<span class="bb-badge bb-badge-info" title="云端已有缓存 ${count} 个资源">已有缓存（${count}）</span>`;
+        preheatBadge = `<span class="bb-badge bb-badge-info" title="云端已有缓存 ${count} 个资源">已有缓存（${count}）</span>`;
     }
 
     // 下载结果状态徽标
@@ -133,11 +163,14 @@ export const renderLogLevelBadge = (level: LogLevel): string => {
     }
 };
 
-export const renderTypePillsHtml = (activeType: XhsDownloaderType | null, needsChoice: boolean): string => {
+export const renderTypePillsHtml = (
+    activeType: XhsDownloaderType | null,
+    needsChoice: boolean
+): string => {
     const shortLabels: Record<XhsDownloaderType, string> = {
-        '小红书图片下载器': '图片',
-        '小红书视频下载器': '视频',
-        '小红书实况图片下载器': '实况',
+        小红书图片下载器: '图片',
+        小红书实况图片下载器: '实况',
+        小红书视频下载器: '视频'
     };
 
     const buttons = XHS_DOWNLOADERS.map(t => {

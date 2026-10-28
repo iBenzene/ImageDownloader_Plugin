@@ -18,32 +18,49 @@ export interface RawNoteStateInfo {
  * 从页面全局状态树中解析指定笔记的元数据
  * 纯函数实现, 便于独立单元测试
  */
-export const extractNoteInfoFromInitialState = (state: unknown, targetNoteId?: string): RawNoteStateInfo | null => {
-    if (!state || typeof state !== 'object') { return null; }
+export const extractNoteInfoFromInitialState = (
+    state: unknown,
+    targetNoteId?: string
+): RawNoteStateInfo | null => {
+    if (!state || typeof state !== 'object') {
+        return null;
+    }
     const noteRoot = (state as { note?: Record<string, unknown> }).note;
-    if (!noteRoot || typeof noteRoot !== 'object') { return null; }
+    if (!noteRoot || typeof noteRoot !== 'object') {
+        return null;
+    }
 
-    const detailMap = noteRoot.noteDetailMap as Record<string, { note?: Record<string, unknown> }> | undefined;
+    const detailMap = noteRoot.noteDetailMap as
+        Record<string, { note?: Record<string, unknown> }> | undefined;
     let noteObj: Record<string, unknown> | undefined;
 
     if (detailMap && typeof detailMap === 'object') {
         if (targetNoteId) {
             const exact =
                 detailMap[targetNoteId] ||
-                Object.entries(detailMap).find(([k]) => k.toLowerCase() === targetNoteId.toLowerCase())?.[1];
+                Object.entries(detailMap).find(
+                    ([k]) => k.toLowerCase() === targetNoteId.toLowerCase()
+                )?.[1];
             noteObj = exact?.note;
         } else {
-            const firstId = typeof noteRoot.firstNoteId === 'string' ? noteRoot.firstNoteId : undefined;
+            const firstId =
+                typeof noteRoot.firstNoteId === 'string'
+                    ? noteRoot.firstNoteId
+                    : undefined;
             if (firstId && detailMap[firstId]?.note) {
                 noteObj = detailMap[firstId].note;
             } else {
-                const firstEntry = Object.values(detailMap).find(v => v && typeof v.note === 'object');
+                const firstEntry = Object.values(detailMap).find(
+                    v => v && typeof v.note === 'object'
+                );
                 noteObj = firstEntry?.note;
             }
         }
     }
 
-    if (!noteObj || typeof noteObj !== 'object') { return null; }
+    if (!noteObj || typeof noteObj !== 'object') {
+        return null;
+    }
 
     const noteId =
         (typeof noteObj.noteId === 'string' && noteObj.noteId) ||
@@ -65,24 +82,29 @@ export const extractNoteInfoFromInitialState = (state: unknown, targetNoteId?: s
 
     if (imageList.length > 0) {
         livePhotoKnown = imageList.some(
-            img => img && typeof img === 'object' && ('livePhoto' in img || 'stream' in img)
+            img =>
+                img &&
+                typeof img === 'object' &&
+                ('livePhoto' in img || 'stream' in img)
         );
         hasLivePhoto = imageList.some(img => {
-            if (!img || typeof img !== 'object') { return false; }
+            if (!img || typeof img !== 'object') {
+                return false;
+            }
             const rec = img as Record<string, unknown>;
             return Boolean(rec.livePhoto || rec.stream);
         });
     }
 
     return {
-        noteId,
-        title: title || desc.slice(0, 36),
         desc,
-        type,
+        hasLivePhoto,
         hasVideo,
         imageCount: imageList.length,
-        hasLivePhoto,
         livePhotoKnown,
+        noteId,
+        title: title || desc.slice(0, 36),
+        type
     };
 };
 
@@ -98,20 +120,20 @@ export const determineXhsDownloaderType = (input: {
         hasImageCarousel: boolean;
     };
 }): { downloader: XhsDownloaderType | null; reason: string } => {
-    const { stateInfo, domSignals } = input;
+    const { domSignals, stateInfo } = input;
 
     // 优先依据页面初始状态数据精确识别
     if (stateInfo) {
         if (stateInfo.hasVideo) {
             return {
                 downloader: '小红书视频下载器',
-                reason: '已识别为视频笔记',
+                reason: '已识别为视频笔记'
             };
         }
         if (stateInfo.hasLivePhoto) {
             return {
                 downloader: '小红书实况图片下载器',
-                reason: '已识别包含实况图片',
+                reason: '已识别包含实况图片'
             };
         }
         if (
@@ -120,7 +142,7 @@ export const determineXhsDownloaderType = (input: {
         ) {
             return {
                 downloader: '小红书图片下载器',
-                reason: `已识别为图文笔记 (${stateInfo.imageCount} 张)`,
+                reason: `已识别为图文笔记 (${stateInfo.imageCount} 张)`
             };
         }
     }
@@ -130,19 +152,23 @@ export const determineXhsDownloaderType = (input: {
         if (domSignals.hasLiveBadge) {
             return {
                 downloader: '小红书实况图片下载器',
-                reason: '已从页面实况标识识别为实况图片',
+                reason: '已从页面实况标识识别为实况图片'
             };
         }
         if (domSignals.hasVideoPlayer && !domSignals.hasImageCarousel) {
             return {
                 downloader: '小红书视频下载器',
-                reason: '已从页面视频播放器识别为视频笔记',
+                reason: '已从页面视频播放器识别为视频笔记'
             };
         }
-        if (domSignals.hasImageCarousel && stateInfo?.type === 'normal' && !domSignals.hasLiveBadge) {
+        if (
+            domSignals.hasImageCarousel &&
+            stateInfo?.type === 'normal' &&
+            !domSignals.hasLiveBadge
+        ) {
             return {
                 downloader: '小红书图片下载器',
-                reason: '已识别为图文笔记',
+                reason: '已识别为图文笔记'
             };
         }
     }
@@ -150,7 +176,7 @@ export const determineXhsDownloaderType = (input: {
     // 无法精准区分时交付用户显式决定
     return {
         downloader: null,
-        reason: '未能可靠判断媒体类型，请手动选择「图片 / 视频 / 实况」',
+        reason: '未能可靠判断媒体类型，请手动选择「图片 / 视频 / 实况」'
     };
 };
 
@@ -165,15 +191,20 @@ export const resolveFullNoteUrlFromPage = (
     const normalizedFromLoc = normalizeXhsNoteUrl(locationHref);
 
     const noteContainer = doc
-        ? (doc.querySelector('#noteContainer, .note-container, .note-detail-mask') as HTMLElement | null)
+        ? (doc.querySelector(
+              '#noteContainer, .note-container, .note-detail-mask'
+          ) as HTMLElement | null)
         : null;
 
     let isModal: boolean;
     try {
         const locUrl = new URL(locationHref);
-        const isProfilePath = /^\/user\/profile\/[a-f\d]{24}\/[a-f\d]{24}/i.test(locUrl.pathname);
+        const isProfilePath =
+            /^\/user\/profile\/[a-f\d]{24}\/[a-f\d]{24}/i.test(locUrl.pathname);
         const hasModalMask = Boolean(
-            doc?.querySelector('.note-detail-mask, .close-circle, .close-box, [class*="note-detail-mask"]')
+            doc?.querySelector(
+                '.note-detail-mask, .close-circle, .close-box, [class*="note-detail-mask"]'
+            )
         );
         isModal = isProfilePath || hasModalMask;
     } catch {
@@ -198,7 +229,7 @@ export const resolveFullNoteUrlFromPage = (
         return {
             noteId: normalizedFromLoc.noteId,
             url: finalUrl,
-            viewMode: isModal ? 'modal' : 'standalone',
+            viewMode: isModal ? 'modal' : 'standalone'
         };
     }
 
@@ -208,12 +239,14 @@ export const resolveFullNoteUrlFromPage = (
             'a[href*="/explore/"][href*="xsec_token="], a[href*="/discovery/item/"][href*="xsec_token="]'
         ) as HTMLAnchorElement | null;
         if (activeLink) {
-            const candidate = normalizeXhsNoteUrl(activeLink.getAttribute('href') || activeLink.href);
+            const candidate = normalizeXhsNoteUrl(
+                activeLink.getAttribute('href') || activeLink.href
+            );
             if (candidate) {
                 return {
                     noteId: candidate.noteId,
                     url: candidate.url,
-                    viewMode: 'modal',
+                    viewMode: 'modal'
                 };
             }
         }
@@ -222,7 +255,8 @@ export const resolveFullNoteUrlFromPage = (
     return null;
 };
 
-declare const unsafeWindow: (Window & { __INITIAL_STATE__?: unknown }) | undefined;
+declare const unsafeWindow:
+    (Window & { __INITIAL_STATE__?: unknown }) | undefined;
 
 type NoteContextChangeListener = (ctx: PageNoteContext | null) => void;
 
@@ -238,7 +272,9 @@ export class XhsPageAdapter {
     private checkTimer: ReturnType<typeof setTimeout> | null = null;
 
     public start(): void {
-        if (typeof window === 'undefined' || typeof document === 'undefined') { return; }
+        if (typeof window === 'undefined' || typeof document === 'undefined') {
+            return;
+        }
 
         this.hookHistoryNavigation();
         this.observer = new MutationObserver(() => {
@@ -246,7 +282,7 @@ export class XhsPageAdapter {
         });
         this.observer.observe(document.documentElement, {
             childList: true,
-            subtree: true,
+            subtree: true
         });
 
         this.evaluateCurrentPage();
@@ -273,18 +309,26 @@ export class XhsPageAdapter {
     }
 
     /** 记录用户针对当前笔记手动指定的下载器选项 */
-    public setManualDownloaderForCurrentNote(downloader: XhsDownloaderType): void {
-        if (!this.currentContext) { return; }
+    public setManualDownloaderForCurrentNote(
+        downloader: XhsDownloaderType
+    ): void {
+        if (!this.currentContext) {
+            return;
+        }
         this.manualTypeOverrides.set(this.currentContext.noteId, downloader);
         this.currentContext = {
             ...this.currentContext,
-            selectedDownloader: downloader,
+            selectedDownloader: downloader
         };
         this.emitContext();
     }
 
-    public getEffectiveDownloader(ctx: PageNoteContext | null = this.currentContext): XhsDownloaderType | null {
-        if (!ctx) { return null; }
+    public getEffectiveDownloader(
+        ctx: PageNoteContext | null = this.currentContext
+    ): XhsDownloaderType | null {
+        if (!ctx) {
+            return null;
+        }
         return ctx.selectedDownloader || ctx.detectedDownloader;
     }
 
@@ -309,16 +353,22 @@ export class XhsPageAdapter {
             return null;
         }
 
-        const resolved = resolveFullNoteUrlFromPage(window.location.href, document);
+        const resolved = resolveFullNoteUrlFromPage(
+            window.location.href,
+            document
+        );
         if (!resolved) {
             this.updateContext(null);
             return null;
         }
 
         const pageState = this.readPageInitialState();
-        const stateInfo = extractNoteInfoFromInitialState(pageState, resolved.noteId);
+        const stateInfo = extractNoteInfoFromInitialState(
+            pageState,
+            resolved.noteId
+        );
         const domSignals = this.inspectNoteDomSignals();
-        const detection = determineXhsDownloaderType({ stateInfo, domSignals });
+        const detection = determineXhsDownloaderType({ domSignals, stateInfo });
 
         const domTitle =
             (
@@ -327,17 +377,20 @@ export class XhsPageAdapter {
                 ) as HTMLElement | null
             )?.textContent?.trim() || '';
 
-        const title = stateInfo?.title || domTitle || `笔记 ${resolved.noteId.slice(0, 8)}`;
+        const title =
+            stateInfo?.title ||
+            domTitle ||
+            `笔记 ${resolved.noteId.slice(0, 8)}`;
         const override = this.manualTypeOverrides.get(resolved.noteId) ?? null;
 
         const nextCtx: PageNoteContext = {
-            noteId: resolved.noteId,
-            url: resolved.url,
-            title,
-            viewMode: resolved.viewMode,
             detectedDownloader: detection.downloader,
             detectionReason: detection.reason,
+            noteId: resolved.noteId,
             selectedDownloader: override,
+            title,
+            url: resolved.url,
+            viewMode: resolved.viewMode
         };
 
         this.updateContext(nextCtx);
@@ -346,7 +399,10 @@ export class XhsPageAdapter {
 
     private readPageInitialState(): unknown {
         try {
-            if (typeof unsafeWindow !== 'undefined' && unsafeWindow?.__INITIAL_STATE__) {
+            if (
+                typeof unsafeWindow !== 'undefined' &&
+                unsafeWindow?.__INITIAL_STATE__
+            ) {
                 return unsafeWindow.__INITIAL_STATE__;
             }
             const win = window as Window & { __INITIAL_STATE__?: unknown };
@@ -363,10 +419,11 @@ export class XhsPageAdapter {
         hasVideoPlayer: boolean;
         hasLiveBadge: boolean;
         hasImageCarousel: boolean;
-        } {
+    } {
         const scope =
-            (document.querySelector('#noteContainer, .note-container, .note-detail-mask') as ParentNode | null) ||
-            document;
+            (document.querySelector(
+                '#noteContainer, .note-container, .note-detail-mask'
+            ) as ParentNode | null) || document;
 
         const hasLiveBadge = Boolean(
             scope.querySelector(
@@ -387,9 +444,9 @@ export class XhsPageAdapter {
         );
 
         return {
-            hasVideoPlayer,
-            hasLiveBadge,
             hasImageCarousel,
+            hasLiveBadge,
+            hasVideoPlayer
         };
     }
 
@@ -403,7 +460,9 @@ export class XhsPageAdapter {
             prev?.selectedDownloader === next?.selectedDownloader &&
             prev?.title === next?.title;
 
-        if (isUnchanged) { return; }
+        if (isUnchanged) {
+            return;
+        }
         this.currentContext = next;
         this.emitContext();
     }

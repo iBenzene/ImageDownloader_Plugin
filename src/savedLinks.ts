@@ -5,7 +5,7 @@ import {
     IDENTITY_RESOLVE_DEADLINE_MS,
     IDENTITY_RETRY_COOLDOWN_MS,
     MAX_SAVED_LINKS,
-    STALE_DELETED_DAYS,
+    STALE_DELETED_DAYS
 } from './constants';
 import { logger } from './logger';
 import { storage } from './storage';
@@ -14,7 +14,7 @@ import {
     PreheatState,
     SavedLinkItem,
     SavedLinkItemAPI,
-    SavedLinkStatus,
+    SavedLinkStatus
 } from './types';
 import {
     extractLocalContentKey,
@@ -22,12 +22,16 @@ import {
     getIdentityPlatform,
     isSameId,
     parseTimestampMs,
-    toIso8601WithMs,
+    toIso8601WithMs
 } from './utils';
 
 export interface DuplicateDetail {
     url: string;
-    reason: 'same_url_saved' | 'same_key_saved' | 'same_url_batch' | 'same_key_batch';
+    reason:
+        | 'same_url_saved'
+        | 'same_key_saved'
+        | 'same_url_batch'
+        | 'same_key_batch';
     matchedUrl?: string;
     contentKey?: string;
 }
@@ -46,16 +50,19 @@ export interface SavePreparationResult {
  */
 export const toSavedLinkAPI = (item: SavedLinkItem): SavedLinkItemAPI => {
     return {
-        id: item.id,
-        url: item.url,
-        downloader: item.downloaderType,
-        status: item.status,
+        cached_urls:
+            item.cachedUrls && item.cachedUrls.length > 0
+                ? item.cachedUrls
+                : null,
+        content_key: item.contentKey ?? null,
         created_at: toIso8601WithMs(item.timestamp),
-        updated_at: toIso8601WithMs(item.updatedAt),
+        downloader: item.downloaderType,
+        id: item.id,
         is_deleted: Boolean(item.isDeleted),
         metadata: item.metadata ?? null,
-        content_key: item.contentKey ?? null,
-        cached_urls: item.cachedUrls && item.cachedUrls.length > 0 ? item.cachedUrls : null,
+        status: item.status,
+        updated_at: toIso8601WithMs(item.updatedAt),
+        url: item.url
     };
 };
 
@@ -63,39 +70,52 @@ export const toSavedLinkAPI = (item: SavedLinkItem): SavedLinkItemAPI => {
  * 将服务端传输结构还原为本地收藏记录模型
  * 根据远端已缓存直链情况推断预热显示状态
  */
-export const fromSavedLinkAPI = (api: SavedLinkItemAPI, existingLocal?: SavedLinkItem): SavedLinkItem => {
+export const fromSavedLinkAPI = (
+    api: SavedLinkItemAPI,
+    existingLocal?: SavedLinkItem
+): SavedLinkItem => {
     const status: SavedLinkStatus =
-        api.status === 'success' || api.status === 'failure' ? api.status : 'none';
-    const hasRemoteCache = Array.isArray(api.cached_urls) && api.cached_urls.length > 0;
-    const preserveLocalAttempt = !hasRemoteCache && !api.is_deleted && !existingLocal?.isDeleted &&
-        existingLocal?.url === api.url && existingLocal.downloaderType === api.downloader &&
-        (existingLocal.preheatState === 'preheating' || existingLocal.preheatState === 'failed');
+        api.status === 'success' || api.status === 'failure'
+            ? api.status
+            : 'none';
+    const hasRemoteCache =
+        Array.isArray(api.cached_urls) && api.cached_urls.length > 0;
+    const preserveLocalAttempt =
+        !hasRemoteCache &&
+        !api.is_deleted &&
+        !existingLocal?.isDeleted &&
+        existingLocal?.url === api.url &&
+        existingLocal.downloaderType === api.downloader &&
+        (existingLocal.preheatState === 'preheating' ||
+            existingLocal.preheatState === 'failed');
 
     let preheatState: PreheatState = 'unpreheated';
     if (hasRemoteCache) {
         // 本机成功预热且缓存匹配则保留预热成功状态, 否则标记为云端同步缓存
         preheatState =
-            existingLocal?.preheatState === 'preheated' ? 'preheated' : 'cached_remote';
+            existingLocal?.preheatState === 'preheated'
+                ? 'preheated'
+                : 'cached_remote';
     }
     if (preserveLocalAttempt) {
         preheatState = existingLocal!.preheatState!;
     }
 
     return {
+        cachedUrls: hasRemoteCache ? api.cached_urls : null,
+        contentKey: api.content_key ?? null,
+        downloaderType: api.downloader,
         // 严格保留服务端返回的 ID 原始大小写形态
         id: api.id,
-        url: api.url,
-        timestamp: toIso8601WithMs(api.created_at),
-        downloaderType: api.downloader,
-        status,
-        updatedAt: toIso8601WithMs(api.updated_at),
         isDeleted: Boolean(api.is_deleted),
         isDirty: false,
-        contentKey: api.content_key ?? null,
-        cachedUrls: hasRemoteCache ? api.cached_urls : null,
         metadata: api.metadata ?? null,
-        preheatState,
         preheatError: preserveLocalAttempt ? existingLocal!.preheatError : null,
+        preheatState,
+        status,
+        timestamp: toIso8601WithMs(api.created_at),
+        updatedAt: toIso8601WithMs(api.updated_at),
+        url: api.url
     };
 };
 
@@ -119,12 +139,19 @@ class SavedLinksManager {
         return this.getAllItems().find(item => isSameId(item.id, id));
     }
 
-    public getActiveItemByUrl(url: string, contentKey?: string | null): SavedLinkItem | undefined {
+    public getActiveItemByUrl(
+        url: string,
+        contentKey?: string | null
+    ): SavedLinkItem | undefined {
         const visible = this.getVisibleItems();
         const byUrl = visible.find(item => item.url === url);
-        if (byUrl) { return byUrl; }
+        if (byUrl) {
+            return byUrl;
+        }
         if (contentKey) {
-            return visible.find(item => item.contentKey && item.contentKey === contentKey);
+            return visible.find(
+                item => item.contentKey && item.contentKey === contentKey
+            );
         }
         return undefined;
     }
@@ -154,18 +181,27 @@ class SavedLinksManager {
 
         if (platform) {
             // 旧收藏缺少标识时只按链接查重, 不解析或修改历史记录
-            const candidates = urls.map(url => ({ url, downloader: downloaderType }));
+            const candidates = urls.map(url => ({
+                downloader: downloaderType,
+                url
+            }));
 
             const deadline = Date.now() + IDENTITY_RESOLVE_DEADLINE_MS;
             const visited = new Set<string>();
             const settings = storage.getSettings();
-            const hasServerConfig = Boolean(settings.serverUrl && settings.serverToken);
+            const hasServerConfig = Boolean(
+                settings.serverUrl && settings.serverToken
+            );
 
             for (const candidate of candidates) {
-                if (visited.has(candidate.url)) { continue; }
+                if (visited.has(candidate.url)) {
+                    continue;
+                }
                 visited.add(candidate.url);
 
-                const existingKey = visibleItems.find(i => i.url === candidate.url)?.contentKey;
+                const existingKey = visibleItems.find(
+                    i => i.url === candidate.url
+                )?.contentKey;
                 if (existingKey) {
                     resolvedCache[candidate.url] = existingKey;
                 }
@@ -176,7 +212,10 @@ class SavedLinksManager {
                 }
 
                 // 尝试本地无需网络请求的正则提取
-                const localKey = extractLocalContentKey(candidate.url, candidate.downloader);
+                const localKey = extractLocalContentKey(
+                    candidate.url,
+                    candidate.downloader
+                );
 
                 if (Date.now() >= deadline || options?.signal?.aborted) {
                     if (localKey) {
@@ -207,24 +246,30 @@ class SavedLinksManager {
 
                 try {
                     const remoteKey = await fetchContentKey({
-                        url: candidate.url,
                         downloader: candidate.downloader,
                         settings,
                         signal: options?.signal,
+                        url: candidate.url
                     });
                     const finalKey = remoteKey || localKey;
                     if (finalKey) {
                         resolvedCache[candidate.url] = finalKey;
                     } else {
                         identityCheckIncomplete = true;
-                        this.identityRetryAfter.set(retryKey, Date.now() + IDENTITY_RETRY_COOLDOWN_MS);
+                        this.identityRetryAfter.set(
+                            retryKey,
+                            Date.now() + IDENTITY_RETRY_COOLDOWN_MS
+                        );
                     }
                 } catch {
                     if (localKey) {
                         resolvedCache[candidate.url] = localKey;
                     }
                     identityCheckIncomplete = true;
-                    this.identityRetryAfter.set(retryKey, Date.now() + IDENTITY_RETRY_COOLDOWN_MS);
+                    this.identityRetryAfter.set(
+                        retryKey,
+                        Date.now() + IDENTITY_RETRY_COOLDOWN_MS
+                    );
                 }
             }
 
@@ -247,38 +292,40 @@ class SavedLinksManager {
 
         for (const url of urls) {
             const key =
-                resolvedCache[url] || extractLocalContentKey(url, downloaderType) || undefined;
+                resolvedCache[url] ||
+                extractLocalContentKey(url, downloaderType) ||
+                undefined;
             if (key && !resolvedCache[url]) {
                 resolvedCache[url] = key;
             }
 
             if (savedUrlSet.has(url)) {
                 duplicates.push({
-                    url,
-                    reason: 'same_url_saved',
-                    matchedUrl: url,
                     contentKey: key,
+                    matchedUrl: url,
+                    reason: 'same_url_saved',
+                    url
                 });
             } else if (platform && key && savedKeyMap.has(key)) {
                 duplicates.push({
-                    url,
-                    reason: 'same_key_saved',
-                    matchedUrl: savedKeyMap.get(key),
                     contentKey: key,
+                    matchedUrl: savedKeyMap.get(key),
+                    reason: 'same_key_saved',
+                    url
                 });
             } else if (batchSeenUrls.has(url)) {
                 duplicates.push({
-                    url,
-                    reason: 'same_url_batch',
-                    matchedUrl: url,
                     contentKey: key,
+                    matchedUrl: url,
+                    reason: 'same_url_batch',
+                    url
                 });
             } else if (platform && key && batchSeenKeys.has(key)) {
                 duplicates.push({
-                    url,
-                    reason: 'same_key_batch',
-                    matchedUrl: batchSeenKeys.get(key),
                     contentKey: key,
+                    matchedUrl: batchSeenKeys.get(key),
+                    reason: 'same_key_batch',
+                    url
                 });
             }
 
@@ -289,11 +336,13 @@ class SavedLinksManager {
         }
 
         return {
-            urls,
-            hasDuplicate: duplicates.length > 0,
             duplicates,
-            identityCheckIncomplete: Boolean(platform && identityCheckIncomplete),
+            hasDuplicate: duplicates.length > 0,
+            identityCheckIncomplete: Boolean(
+                platform && identityCheckIncomplete
+            ),
             resolvedContentKeys: resolvedCache,
+            urls
         };
     }
 
@@ -308,36 +357,49 @@ class SavedLinksManager {
         downloaderType: AllDownloaderType,
         contentKeys: Record<string, string> = {}
     ): SavedLinkItem[] {
-        if (urls.length === 0) { return []; }
+        if (urls.length === 0) {
+            return [];
+        }
         const items = this.getAllItems();
         const touchedItems: SavedLinkItem[] = [];
         const platform = getIdentityPlatform(downloaderType);
 
         for (const rawUrl of urls) {
             const url = rawUrl.trim();
-            if (!url) { continue; }
+            if (!url) {
+                continue;
+            }
 
             const now = toIso8601WithMs();
             const resolvedKey =
                 platform !== null
-                    ? contentKeys[url] || extractLocalContentKey(url, downloaderType) || undefined
+                    ? contentKeys[url] ||
+                      extractLocalContentKey(url, downloaderType) ||
+                      undefined
                     : undefined;
 
             // 查找所有匹配当前链接或相同内容标识的已有记录 (涵盖有效记录与已软删除记录)
             const matchingIndices: number[] = [];
             items.forEach((item, idx) => {
-                if (item.url === url || (resolvedKey && item.contentKey === resolvedKey)) {
+                if (
+                    item.url === url ||
+                    (resolvedKey && item.contentKey === resolvedKey)
+                ) {
                     matchingIndices.push(idx);
                 }
             });
 
             if (matchingIndices.length > 0) {
                 // 优先挑选未删除记录, 无活跃记录时取首条已删除记录复用标识
-                const activeIdx = matchingIndices.find(idx => !items[idx].isDeleted);
-                const winnerIndex = activeIdx !== undefined ? activeIdx : matchingIndices[0];
+                const activeIdx = matchingIndices.find(
+                    idx => !items[idx].isDeleted
+                );
+                const winnerIndex =
+                    activeIdx !== undefined ? activeIdx : matchingIndices[0];
                 const winner: SavedLinkItem = { ...items[winnerIndex] };
                 const wasDeleted = winner.isDeleted;
-                const downloaderChanged = winner.downloaderType !== downloaderType;
+                const downloaderChanged =
+                    winner.downloaderType !== downloaderType;
 
                 if (wasDeleted) {
                     winner.isDeleted = false;
@@ -347,14 +409,20 @@ class SavedLinksManager {
                 }
 
                 if (downloaderChanged) {
-                    logger.info(`恢复或更新收藏链接下载器类型为 ${downloaderType}`, {
-                        context: url,
-                    });
+                    logger.info(
+                        `恢复或更新收藏链接下载器类型为 ${downloaderType}`,
+                        {
+                            context: url
+                        }
+                    );
                     winner.downloaderType = downloaderType;
                     winner.cachedUrls = null;
                     winner.preheatState = 'unpreheated';
                     winner.preheatError = null;
-                } else if (!wasDeleted && (!winner.cachedUrls || winner.cachedUrls.length === 0)) {
+                } else if (
+                    !wasDeleted &&
+                    (!winner.cachedUrls || winner.cachedUrls.length === 0)
+                ) {
                     winner.preheatState = 'unpreheated';
                     winner.preheatError = null;
                 }
@@ -371,12 +439,12 @@ class SavedLinksManager {
                     if (idx !== winnerIndex && !items[idx].isDeleted) {
                         items[idx] = {
                             ...items[idx],
-                            isDeleted: true,
                             cachedUrls: null,
-                            preheatState: 'unpreheated',
-                            preheatError: null,
-                            updatedAt: now,
+                            isDeleted: true,
                             isDirty: true,
+                            preheatError: null,
+                            preheatState: 'unpreheated',
+                            updatedAt: now
                         };
                     }
                 }
@@ -384,26 +452,28 @@ class SavedLinksManager {
                 // 调整至列表前列
                 items.splice(winnerIndex, 1);
                 items.unshift(winner);
-                const existingTouchedIdx = touchedItems.findIndex(item => isSameId(item.id, winner.id));
+                const existingTouchedIdx = touchedItems.findIndex(item =>
+                    isSameId(item.id, winner.id)
+                );
                 if (existingTouchedIdx !== -1) {
                     touchedItems.splice(existingTouchedIdx, 1);
                 }
                 touchedItems.push(winner);
             } else {
                 const newItem: SavedLinkItem = {
-                    id: generateUUID(),
-                    url,
-                    timestamp: now,
+                    cachedUrls: null,
+                    contentKey: resolvedKey ?? null,
                     downloaderType,
-                    status: 'none',
-                    updatedAt: now,
+                    id: generateUUID(),
                     isDeleted: false,
                     isDirty: true,
-                    contentKey: resolvedKey ?? null,
-                    cachedUrls: null,
                     metadata: null,
-                    preheatState: 'unpreheated',
                     preheatError: null,
+                    preheatState: 'unpreheated',
+                    status: 'none',
+                    timestamp: now,
+                    updatedAt: now,
+                    url
                 };
                 items.unshift(newItem);
                 touchedItems.push(newItem);
@@ -415,16 +485,21 @@ class SavedLinksManager {
     }
 
     /** 更新单条收藏的下载结果状态 */
-    public updateStatus(id: string, newStatus: SavedLinkStatus): SavedLinkItem | null {
+    public updateStatus(
+        id: string,
+        newStatus: SavedLinkStatus
+    ): SavedLinkItem | null {
         const items = this.getAllItems();
         const idx = items.findIndex(item => isSameId(item.id, id));
-        if (idx === -1) { return null; }
+        if (idx === -1) {
+            return null;
+        }
 
         items[idx] = {
             ...items[idx],
-            status: newStatus,
-            updatedAt: toIso8601WithMs(),
             isDirty: true,
+            status: newStatus,
+            updatedAt: toIso8601WithMs()
         };
         this.saveItems(items);
         return items[idx];
@@ -441,36 +516,38 @@ class SavedLinksManager {
     ): SavedLinkItem | null {
         const items = this.getAllItems();
         const idx = items.findIndex(item => isSameId(item.id, id));
-        if (idx === -1) { return null; }
+        if (idx === -1) {
+            return null;
+        }
 
         const current = items[idx];
         if (result.state === 'preheating') {
             items[idx] = {
                 ...current,
-                preheatState: 'preheating',
                 preheatError: null,
+                preheatState: 'preheating'
             };
         } else if (result.state === 'preheated') {
             items[idx] = {
                 ...current,
                 cachedUrls: result.cachedUrls,
-                preheatState: 'preheated',
-                preheatError: null,
-                updatedAt: toIso8601WithMs(),
                 isDirty: true,
+                preheatError: null,
+                preheatState: 'preheated',
+                updatedAt: toIso8601WithMs()
             };
         } else if (result.state === 'failed') {
             // 预热未成功时不破坏已有收藏记录, 仅登记失败原因
             items[idx] = {
                 ...current,
-                preheatState: 'failed',
                 preheatError: result.error,
+                preheatState: 'failed'
             };
         } else {
             items[idx] = {
                 ...current,
-                preheatState: 'unpreheated',
                 preheatError: null,
+                preheatState: 'unpreheated'
             };
         }
 
@@ -485,21 +562,26 @@ class SavedLinksManager {
 
     /** 批量软删除指定收藏列表 */
     public deleteItems(ids: string[]): number {
-        if (ids.length === 0) { return 0; }
+        if (ids.length === 0) {
+            return 0;
+        }
         const items = this.getAllItems();
         const now = toIso8601WithMs();
         let count = 0;
 
         for (let i = 0; i < items.length; i++) {
-            if (!items[i].isDeleted && ids.some(id => isSameId(id, items[i].id))) {
+            if (
+                !items[i].isDeleted &&
+                ids.some(id => isSameId(id, items[i].id))
+            ) {
                 items[i] = {
                     ...items[i],
-                    isDeleted: true,
                     cachedUrls: null,
-                    preheatState: 'unpreheated',
-                    preheatError: null,
-                    updatedAt: now,
+                    isDeleted: true,
                     isDirty: true,
+                    preheatError: null,
+                    preheatState: 'unpreheated',
+                    updatedAt: now
                 };
                 count++;
             }
@@ -521,12 +603,12 @@ class SavedLinksManager {
             if (!items[i].isDeleted) {
                 items[i] = {
                     ...items[i],
-                    isDeleted: true,
                     cachedUrls: null,
-                    preheatState: 'unpreheated',
-                    preheatError: null,
-                    updatedAt: now,
+                    isDeleted: true,
                     isDirty: true,
+                    preheatError: null,
+                    preheatState: 'unpreheated',
+                    updatedAt: now
                 };
                 count++;
             }
@@ -542,17 +624,28 @@ class SavedLinksManager {
      * 将快照中已确认完成同步且同步期间未再变更的记录清除待同步标记
      * 防止同步进行过程中产生的新修改被意外冲掉
      */
-    public markSnapshotAsSynced(snapshotUpdatedAtById: Map<string, string>, namespace?: string): void {
+    public markSnapshotAsSynced(
+        snapshotUpdatedAtById: Map<string, string>,
+        namespace?: string
+    ): void {
         const items = storage.getSavedLinks(namespace);
         let changed = false;
 
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
-            if (!item.isDirty) { continue; }
+            if (!item.isDirty) {
+                continue;
+            }
 
-            for (const [snapId, snapUpdatedAt] of snapshotUpdatedAtById.entries()) {
+            for (const [
+                snapId,
+                snapUpdatedAt
+            ] of snapshotUpdatedAtById.entries()) {
                 if (isSameId(item.id, snapId)) {
-                    if (parseTimestampMs(item.updatedAt) === parseTimestampMs(snapUpdatedAt)) {
+                    if (
+                        parseTimestampMs(item.updatedAt) ===
+                        parseTimestampMs(snapUpdatedAt)
+                    ) {
                         items[i] = { ...item, isDirty: false };
                         changed = true;
                     }
@@ -571,7 +664,10 @@ class SavedLinksManager {
      * 保持远端标识原始大小写, 依据更新时间戳决胜
      * 同链接若远端缺失去重标识而本地已存在, 则保留本地标识并标记待同步回填
      */
-    public mergeRemoteRecords(remoteApiRecords: SavedLinkItemAPI[], namespace?: string): {
+    public mergeRemoteRecords(
+        remoteApiRecords: SavedLinkItemAPI[],
+        namespace?: string
+    ): {
         updatedCount: number;
         insertedCount: number;
     } {
@@ -580,7 +676,9 @@ class SavedLinksManager {
         let insertedCount = 0;
 
         for (const remoteApi of remoteApiRecords) {
-            const localIdx = items.findIndex(item => isSameId(item.id, remoteApi.id));
+            const localIdx = items.findIndex(item =>
+                isSameId(item.id, remoteApi.id)
+            );
 
             if (localIdx !== -1) {
                 const local = items[localIdx];
@@ -590,9 +688,15 @@ class SavedLinksManager {
                 if (remoteTime >= localTime) {
                     const merged = fromSavedLinkAPI(remoteApi, local);
                     // 同链接且远端缺少去重标识时保留本地已有标识并标记回传
-                    if (merged.url === local.url && !merged.contentKey && local.contentKey) {
+                    if (
+                        merged.url === local.url &&
+                        !merged.contentKey &&
+                        local.contentKey
+                    ) {
                         merged.contentKey = local.contentKey;
-                        merged.updatedAt = toIso8601WithMs(Math.max(Date.now(), remoteTime + 1));
+                        merged.updatedAt = toIso8601WithMs(
+                            Math.max(Date.now(), remoteTime + 1)
+                        );
                         merged.isDirty = true;
                     }
                     items[localIdx] = merged;
@@ -606,23 +710,32 @@ class SavedLinksManager {
         }
 
         // 按收藏时间戳降序排序
-        items.sort((a, b) => parseTimestampMs(b.timestamp) - parseTimestampMs(a.timestamp));
+        items.sort(
+            (a, b) =>
+                parseTimestampMs(b.timestamp) - parseTimestampMs(a.timestamp)
+        );
 
         const cleaned = this.applyCapacityAndCleanupPolicy(items);
         storage.setSavedLinks(cleaned, namespace);
-        return { updatedCount, insertedCount };
+        return { insertedCount, updatedCount };
     }
 
     /**
      * 执行本地容量控制与软删除清理
      * 严禁淘汰未同步变更数据, 仅清除超期墓碑与淘汰多余的已同步旧记录
      */
-    private applyCapacityAndCleanupPolicy(items: SavedLinkItem[]): SavedLinkItem[] {
+    private applyCapacityAndCleanupPolicy(
+        items: SavedLinkItem[]
+    ): SavedLinkItem[] {
         const cutoffMs = Date.now() - STALE_DELETED_DAYS * 24 * 60 * 60 * 1000;
 
         // 清理已同步且超过三十天的软删除墓碑记录
         const afterStaleCleanup = items.filter(item => {
-            if (item.isDeleted && !item.isDirty && parseTimestampMs(item.updatedAt) < cutoffMs) {
+            if (
+                item.isDeleted &&
+                !item.isDirty &&
+                parseTimestampMs(item.updatedAt) < cutoffMs
+            ) {
                 return false;
             }
             return true;
@@ -639,7 +752,10 @@ class SavedLinksManager {
         const keptSynced = syncedItems.slice(0, remainingQuota);
 
         const combined = [...dirtyItems, ...keptSynced];
-        combined.sort((a, b) => parseTimestampMs(b.timestamp) - parseTimestampMs(a.timestamp));
+        combined.sort(
+            (a, b) =>
+                parseTimestampMs(b.timestamp) - parseTimestampMs(a.timestamp)
+        );
         return combined;
     }
 

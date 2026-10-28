@@ -2,8 +2,18 @@
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS } from './constants';
 import { getGmBridge } from './gmAdapter';
-import { HistoryItem, LogEntry, PluginSettings, SavedLinkItem, TaskItem } from './types';
-import { generateUUID, getServerNamespaceHash, normalizeServerBaseUrl } from './utils';
+import {
+    HistoryItem,
+    LogEntry,
+    PluginSettings,
+    SavedLinkItem,
+    TaskItem
+} from './types';
+import {
+    generateUUID,
+    getServerNamespaceHash,
+    normalizeServerBaseUrl
+} from './utils';
 
 /** 当前标签页实例唯一标识, 用于多标签页协同与执行者选举 */
 export const CURRENT_TAB_ID = generateUUID();
@@ -34,11 +44,17 @@ class StorageManager {
     private initCrossTabSync(): void {
         try {
             if (typeof BroadcastChannel !== 'undefined') {
-                this.broadcastChannel = new BroadcastChannel('benben_image_downloader_channel_v1');
-                (this.broadcastChannel as unknown as { unref?: () => void })?.unref?.();
+                this.broadcastChannel = new BroadcastChannel(
+                    'benben_image_downloader_channel_v1'
+                );
+                (
+                    this.broadcastChannel as unknown as { unref?: () => void }
+                )?.unref?.();
                 this.broadcastChannel.onmessage = event => {
                     if (event?.data?.tabId !== CURRENT_TAB_ID) {
-                        this.emitChange(event?.data?.reason || 'remote_tab_update');
+                        this.emitChange(
+                            event?.data?.reason || 'remote_tab_update'
+                        );
                     }
                 };
             }
@@ -47,15 +63,30 @@ class StorageManager {
         }
 
         const bridge = getGmBridge();
-        bridge.addValueChangeListener(STORAGE_KEYS.SETTINGS, (_name, _oldV, _newV, remote) => {
-            if (remote) { this.emitChange('settings'); }
-        });
-        bridge.addValueChangeListener(STORAGE_KEYS.TASKS, (_name, _oldV, _newV, remote) => {
-            if (remote) { this.emitChange('tasks'); }
-        });
-        bridge.addValueChangeListener(STORAGE_KEYS.LOGS, (_name, _oldV, _newV, remote) => {
-            if (remote) { this.emitChange('logs'); }
-        });
+        bridge.addValueChangeListener(
+            STORAGE_KEYS.SETTINGS,
+            (...[, , , remote]) => {
+                if (remote) {
+                    this.emitChange('settings');
+                }
+            }
+        );
+        bridge.addValueChangeListener(
+            STORAGE_KEYS.TASKS,
+            (...[, , , remote]) => {
+                if (remote) {
+                    this.emitChange('tasks');
+                }
+            }
+        );
+        bridge.addValueChangeListener(
+            STORAGE_KEYS.LOGS,
+            (...[, , , remote]) => {
+                if (remote) {
+                    this.emitChange('logs');
+                }
+            }
+        );
     }
 
     /** 订阅本地数据变更通知 */
@@ -81,7 +112,11 @@ class StorageManager {
     private notifyTabs(reason: string): void {
         this.emitChange(reason);
         try {
-            this.broadcastChannel?.postMessage({ tabId: CURRENT_TAB_ID, reason, ts: Date.now() });
+            this.broadcastChannel?.postMessage({
+                reason,
+                tabId: CURRENT_TAB_ID,
+                ts: Date.now()
+            });
         } catch {
             // 忽略消息广播通道不可用时的异常
         }
@@ -102,25 +137,39 @@ class StorageManager {
 
     /** 读取插件当前配置 */
     public getSettings(): PluginSettings {
-        const raw = getGmBridge().getValue<Partial<PluginSettings>>(STORAGE_KEYS.SETTINGS, {});
+        const raw = getGmBridge().getValue<Partial<PluginSettings>>(
+            STORAGE_KEYS.SETTINGS,
+            {}
+        );
         return {
-            serverUrl:
-                typeof raw.serverUrl === 'string'
-                    ? normalizeServerBaseUrl(raw.serverUrl)
-                    : DEFAULT_SETTINGS.serverUrl,
-            serverToken: typeof raw.serverToken === 'string' ? raw.serverToken.trim() : DEFAULT_SETTINGS.serverToken,
-            serverSideProxy:
-                typeof raw.serverSideProxy === 'boolean' ? raw.serverSideProxy : DEFAULT_SETTINGS.serverSideProxy,
-            preheatResources:
-                typeof raw.preheatResources === 'boolean' ? raw.preheatResources : DEFAULT_SETTINGS.preheatResources,
-            incrementalSync:
-                typeof raw.incrementalSync === 'boolean' ? raw.incrementalSync : DEFAULT_SETTINGS.incrementalSync,
             defaultAction:
                 raw.defaultAction === 'save' || raw.defaultAction === 'download'
                     ? raw.defaultAction
                     : DEFAULT_SETTINGS.defaultAction,
+            incrementalSync:
+                typeof raw.incrementalSync === 'boolean'
+                    ? raw.incrementalSync
+                    : DEFAULT_SETTINGS.incrementalSync,
             logDisplayLevel:
-                typeof raw.logDisplayLevel === 'number' ? raw.logDisplayLevel : DEFAULT_SETTINGS.logDisplayLevel,
+                typeof raw.logDisplayLevel === 'number'
+                    ? raw.logDisplayLevel
+                    : DEFAULT_SETTINGS.logDisplayLevel,
+            preheatResources:
+                typeof raw.preheatResources === 'boolean'
+                    ? raw.preheatResources
+                    : DEFAULT_SETTINGS.preheatResources,
+            serverSideProxy:
+                typeof raw.serverSideProxy === 'boolean'
+                    ? raw.serverSideProxy
+                    : DEFAULT_SETTINGS.serverSideProxy,
+            serverToken:
+                typeof raw.serverToken === 'string'
+                    ? raw.serverToken.trim()
+                    : DEFAULT_SETTINGS.serverToken,
+            serverUrl:
+                typeof raw.serverUrl === 'string'
+                    ? normalizeServerBaseUrl(raw.serverUrl)
+                    : DEFAULT_SETTINGS.serverUrl
         };
     }
 
@@ -136,25 +185,31 @@ class StorageManager {
         const next: PluginSettings = {
             ...prev,
             ...patch,
-            serverUrl:
-                patch.serverUrl !== undefined ? normalizeServerBaseUrl(patch.serverUrl) : prev.serverUrl,
             serverToken:
-                patch.serverToken !== undefined ? patch.serverToken.trim() : prev.serverToken,
+                patch.serverToken !== undefined
+                    ? patch.serverToken.trim()
+                    : prev.serverToken,
+            serverUrl:
+                patch.serverUrl !== undefined
+                    ? normalizeServerBaseUrl(patch.serverUrl)
+                    : prev.serverUrl
         };
         getGmBridge().setValue(STORAGE_KEYS.SETTINGS, next);
         const currentNamespace = this.getActiveNamespace(next);
         const namespaceChanged = previousNamespace !== currentNamespace;
         this.notifyTabs(namespaceChanged ? 'namespace_changed' : 'settings');
         return {
-            settings: next,
+            currentNamespace,
             namespaceChanged,
             previousNamespace,
-            currentNamespace,
+            settings: next
         };
     }
 
     /** 获取当前服务端配置对应的数据隔离命名空间标识 */
-    public getActiveNamespace(settings: PluginSettings = this.getSettings()): string {
+    public getActiveNamespace(
+        settings: PluginSettings = this.getSettings()
+    ): string {
         return getServerNamespaceHash(settings.serverUrl, settings.serverToken);
     }
 
@@ -167,7 +222,10 @@ class StorageManager {
     // 收藏数据持久化操作 (按服务端空间隔离)
 
     public getSavedLinks(namespace?: string): SavedLinkItem[] {
-        const items = getGmBridge().getValue<SavedLinkItem[]>(this.nsKey('saved_links', namespace), []);
+        const items = getGmBridge().getValue<SavedLinkItem[]>(
+            this.nsKey('saved_links', namespace),
+            []
+        );
         return Array.isArray(items) ? items : [];
     }
 
@@ -183,12 +241,20 @@ class StorageManager {
         );
     }
 
-    public setSavedLinksLastSyncedAt(iso: string | null, namespace?: string): void {
-        getGmBridge().setValue(this.nsKey('saved_links_last_synced_at', namespace), iso);
+    public setSavedLinksLastSyncedAt(
+        iso: string | null,
+        namespace?: string
+    ): void {
+        getGmBridge().setValue(
+            this.nsKey('saved_links_last_synced_at', namespace),
+            iso
+        );
         this.notifyTabs('saved_links_sync_cursor');
     }
 
-    public getResolvedContentKeysCache(namespace?: string): Record<string, string> {
+    public getResolvedContentKeysCache(
+        namespace?: string
+    ): Record<string, string> {
         const map = getGmBridge().getValue<Record<string, string>>(
             this.nsKey('content_keys_cache', namespace),
             {}
@@ -196,14 +262,23 @@ class StorageManager {
         return map && typeof map === 'object' ? map : {};
     }
 
-    public setResolvedContentKeysCache(cache: Record<string, string>, namespace?: string): void {
-        getGmBridge().setValue(this.nsKey('content_keys_cache', namespace), cache);
+    public setResolvedContentKeysCache(
+        cache: Record<string, string>,
+        namespace?: string
+    ): void {
+        getGmBridge().setValue(
+            this.nsKey('content_keys_cache', namespace),
+            cache
+        );
     }
 
     // 下载历史持久化操作 (按服务端空间隔离)
 
     public getHistoryItems(namespace?: string): HistoryItem[] {
-        const items = getGmBridge().getValue<HistoryItem[]>(this.nsKey('history_items', namespace), []);
+        const items = getGmBridge().getValue<HistoryItem[]>(
+            this.nsKey('history_items', namespace),
+            []
+        );
         return Array.isArray(items) ? items : [];
     }
 
@@ -219,15 +294,24 @@ class StorageManager {
         );
     }
 
-    public setHistoryLastSyncedAt(iso: string | null, namespace?: string): void {
-        getGmBridge().setValue(this.nsKey('history_last_synced_at', namespace), iso);
+    public setHistoryLastSyncedAt(
+        iso: string | null,
+        namespace?: string
+    ): void {
+        getGmBridge().setValue(
+            this.nsKey('history_last_synced_at', namespace),
+            iso
+        );
         this.notifyTabs('history_sync_cursor');
     }
 
     // 本地任务队列持久化操作 (按服务端空间隔离)
 
     public getTasks(namespace?: string): TaskItem[] {
-        const items = getGmBridge().getValue<TaskItem[]>(this.nsKey('tasks', namespace), []);
+        const items = getGmBridge().getValue<TaskItem[]>(
+            this.nsKey('tasks', namespace),
+            []
+        );
         return Array.isArray(items) ? items : [];
     }
 
@@ -250,46 +334,75 @@ class StorageManager {
 
     // 多标签页执行租约锁机制
 
-    public tryAcquireLease(leaseKey: string, ttlMs = 12000, taskId?: string): boolean {
+    public tryAcquireLease(
+        leaseKey: string,
+        ttlMs = 12000,
+        taskId?: string
+    ): boolean {
         const now = Date.now();
-        const current = getGmBridge().getValue<LeaseRecord | null>(leaseKey, null);
-        if (current && current.tabId !== CURRENT_TAB_ID && current.expiresAt > now) {
+        const current = getGmBridge().getValue<LeaseRecord | null>(
+            leaseKey,
+            null
+        );
+        if (
+            current &&
+            current.tabId !== CURRENT_TAB_ID &&
+            current.expiresAt > now
+        ) {
             return false;
         }
         const next: LeaseRecord = {
-            tabId: CURRENT_TAB_ID,
-            acquiredAt: current?.tabId === CURRENT_TAB_ID ? current.acquiredAt : now,
+            acquiredAt:
+                current?.tabId === CURRENT_TAB_ID ? current.acquiredAt : now,
             expiresAt: now + ttlMs,
-            taskId,
+            tabId: CURRENT_TAB_ID,
+            taskId
         };
         getGmBridge().setValue(leaseKey, next);
         return true;
     }
 
-    public renewLease(leaseKey: string, ttlMs = 12000, taskId?: string): boolean {
+    public renewLease(
+        leaseKey: string,
+        ttlMs = 12000,
+        taskId?: string
+    ): boolean {
         const now = Date.now();
-        const current = getGmBridge().getValue<LeaseRecord | null>(leaseKey, null);
-        if (current && current.tabId !== CURRENT_TAB_ID && current.expiresAt > now) {
+        const current = getGmBridge().getValue<LeaseRecord | null>(
+            leaseKey,
+            null
+        );
+        if (
+            current &&
+            current.tabId !== CURRENT_TAB_ID &&
+            current.expiresAt > now
+        ) {
             return false;
         }
         getGmBridge().setValue(leaseKey, {
-            tabId: CURRENT_TAB_ID,
             acquiredAt: current?.acquiredAt ?? now,
             expiresAt: now + ttlMs,
-            taskId: taskId ?? current?.taskId,
+            tabId: CURRENT_TAB_ID,
+            taskId: taskId ?? current?.taskId
         });
         return true;
     }
 
     public releaseLease(leaseKey: string): void {
-        const current = getGmBridge().getValue<LeaseRecord | null>(leaseKey, null);
+        const current = getGmBridge().getValue<LeaseRecord | null>(
+            leaseKey,
+            null
+        );
         if (current && current.tabId === CURRENT_TAB_ID) {
             getGmBridge().deleteValue(leaseKey);
         }
     }
 
     public getActiveLease(leaseKey: string): LeaseRecord | null {
-        const current = getGmBridge().getValue<LeaseRecord | null>(leaseKey, null);
+        const current = getGmBridge().getValue<LeaseRecord | null>(
+            leaseKey,
+            null
+        );
         if (!current || current.expiresAt <= Date.now()) {
             return null;
         }
