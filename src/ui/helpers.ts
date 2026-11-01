@@ -1,11 +1,17 @@
 // src/ui/helpers.ts
 
 import { XHS_DOWNLOADERS } from '../constants';
-import { LogLevel, SavedLinkItem, TaskItem, XhsDownloaderType } from '../types';
+import {
+    LogLevel,
+    SavedLinkItem,
+    TaskItem,
+    SupportedDownloaderType,
+    XhsDownloaderType
+} from '../types';
 import {
     formatRelativeDate,
     getShortDownloaderName,
-    isXhsDownloader
+    isSupportedDownloader
 } from '../utils';
 
 export const escapeHtml = (str: string | undefined | null): string => {
@@ -76,7 +82,7 @@ export const getPlatformBadgeClass = (
  */
 export const renderSavedItemBadges = (item: SavedLinkItem): string => {
     const shortName = escapeHtml(getShortDownloaderName(item.downloaderType));
-    const supported = isXhsDownloader(item.downloaderType);
+    const supported = isSupportedDownloader(item.downloaderType);
     const platformClass = getPlatformBadgeClass(item.downloaderType);
 
     // 同步状态徽标
@@ -111,7 +117,7 @@ export const renderSavedItemBadges = (item: SavedLinkItem): string => {
 
     const platformBadge = supported
         ? `<span class="bb-badge ${platformClass}">${shortName}</span>`
-        : `<span class="bb-badge ${platformClass}" title="仅支持小红书下载，其他平台记录仅供查看">${shortName}（仅查看）</span>`;
+        : `<span class="bb-badge ${platformClass}" title="仅支持小红书与哔哩哔哩下载，其他平台记录仅供查看">${shortName}（仅查看）</span>`;
 
     return `${platformBadge}${syncBadge}${preheatBadge}${downloadBadge}`;
 };
@@ -164,9 +170,12 @@ export const renderLogLevelBadge = (level: LogLevel): string => {
 };
 
 export const renderTypePillsHtml = (
-    activeType: XhsDownloaderType | null,
+    activeType: SupportedDownloaderType | null,
     needsChoice: boolean
 ): string => {
+    if (activeType === '哔哩哔哩视频下载器') {
+        return '<div class="bb-entry-type-group"><span class="bb-type-pill is-active">哔哩哔哩视频</span></div>';
+    }
     const shortLabels: Record<XhsDownloaderType, string> = {
         小红书图片下载器: '图片',
         小红书实况图片下载器: '实况',

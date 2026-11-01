@@ -12,7 +12,7 @@ import { AllDownloaderType, LivePhotoMediaItem, MediaSubTask } from './types';
 import {
     buildMediaFilename,
     decodeLiveCachedUrls,
-    isXhsDownloader,
+    isSupportedDownloader,
     unescapeMediaUrl
 } from './utils';
 
@@ -110,7 +110,9 @@ class DownloadService {
 
         const urls = options.singleUrls || [];
         const total = urls.length;
-        const isVideo = downloaderType === '小红书视频下载器';
+        const isVideo =
+            downloaderType === '小红书视频下载器' ||
+            downloaderType === '哔哩哔哩视频下载器';
         urls.forEach((rawUrl, idx) => {
             const cleanUrl = unescapeMediaUrl(rawUrl);
             const mediaNum = idx + 1;
@@ -156,8 +158,8 @@ class DownloadService {
         const totalNoteCount = options.totalNoteCount ?? 1;
         const settings = storage.getSettings();
 
-        if (!isXhsDownloader(options.downloaderType)) {
-            const msg = `仅支持小红书下载器（${options.downloaderType}暂不支持在浏览器端下载）`;
+        if (!isSupportedDownloader(options.downloaderType)) {
+            const msg = `仅支持小红书与哔哩哔哩下载器（${options.downloaderType}暂不支持在浏览器端下载）`;
             logger.warn(msg, { context: options.url, taskId: options.taskId });
             return {
                 cacheDownloadFailed: false,

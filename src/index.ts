@@ -5,7 +5,7 @@ import { logger } from './logger';
 import { syncCoordinator } from './sync';
 import { taskQueue } from './taskQueue';
 import { pluginUI } from './ui/panel';
-import { xhsPageAdapter } from './xhsPageAdapter';
+import { pageAdapter } from './pageAdapter';
 
 /**
  * 客户端核心初始化入口
@@ -18,7 +18,7 @@ const initUserscript = (): void => {
     pluginUI.init();
 
     // 启动页面单页路由监听与笔记上下文识别
-    xhsPageAdapter.start();
+    pageAdapter.start();
 
     // 恢复中断状态并启动尚未执行的排队任务
     taskQueue.start();

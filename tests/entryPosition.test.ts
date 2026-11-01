@@ -17,7 +17,11 @@ import { BenbenPluginUI } from '../src/ui/panel';
 import { xhsPageAdapter } from '../src/xhsPageAdapter';
 
 test('Entry follows visible note media and stays inside a narrow viewport', () => {
-    const browser = new Window({ height: 900, width: 1440 });
+    const browser = new Window({
+        height: 900,
+        url: 'https://www.xiaohongshu.com/',
+        width: 1440
+    });
     browser.document.body.innerHTML =
         '<div class="note-container"><div class="media-container" id="hidden"></div></div>' +
         '<div id="noteContainer"><div class="media-container" id="active"></div></div><div id="bar"></div>';
@@ -262,4 +266,40 @@ test('Entry bar status transitions from detection reason to progress and final r
         }
         resetGmBridge();
     }
+});
+
+test('Bilibili hidden notes panel does not hide the entry bar over the visible player', () => {
+    const browser = new Window({
+        height: 900,
+        url: 'https://www.bilibili.com/video/BV1xokcBHE5p/',
+        width: 1440
+    });
+    const doc = browser.document;
+    doc.body.innerHTML =
+        '<div id="viewbox_report"><div class="video-info-meta"><span class="item"></span></div></div>' +
+        '<div id="bilibili-player"></div><div id="bar"></div>';
+    doc.querySelector('.video-info-meta')!.getBoundingClientRect = () =>
+        new browser.DOMRect(100, 50, 1000, 24);
+    doc.querySelector('.item')!.getBoundingClientRect = () =>
+        new browser.DOMRect(100, 50, 400, 24);
+    doc.getElementById('bilibili-player')!.getBoundingClientRect = () =>
+        new browser.DOMRect(100, 100, 1000, 600);
+    const bar = doc.getElementById('bar')! as HappyHTMLElement;
+    const update = () =>
+        positionEntryBar(
+            bar as unknown as HTMLElement,
+            doc as unknown as Document,
+            browser as unknown as globalThis.Window
+        );
+    update();
+    assert.equal(bar.style.visibility, 'visible');
+    const notes = doc.createElement('div');
+    notes.className = 'note-container';
+    notes.style.visibility = 'hidden';
+    doc.body.append(notes);
+    update();
+    assert.equal(bar.style.visibility, 'visible');
+    assert.equal(bar.style.left, '1100px');
+    assert.equal(bar.style.top, '62px');
+    browser.happyDOM.abort();
 });

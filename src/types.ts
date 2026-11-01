@@ -9,6 +9,8 @@
 export type XhsDownloaderType =
     '小红书图片下载器' | '小红书实况图片下载器' | '小红书视频下载器';
 
+export type SupportedDownloaderType = XhsDownloaderType | '哔哩哔哩视频下载器';
+
 export type AllDownloaderType =
     | XhsDownloaderType
     | '米游社图片下载器'
@@ -233,7 +235,7 @@ export interface TaskItem {
 
 /** 页面笔记上下文提取结果 */
 export interface PageNoteContext {
-    /** 24 位十六进制笔记唯一标识 */
+    /** 小红书笔记 ID 或 B 站稿件与分 P 标识 */
     noteId: string;
     /** 附带必要安全鉴权凭据的完整访问地址 */
     url: string;
@@ -242,11 +244,11 @@ export interface PageNoteContext {
     /** 页面展现形态, standalone 为独立页, modal 为浮层弹窗 */
     viewMode: 'standalone' | 'modal';
     /** 自动推断出的下载器分类, 置信度不足时为 null */
-    detectedDownloader: XhsDownloaderType | null;
+    detectedDownloader: SupportedDownloaderType | null;
     /** 判定依据与规则说明 */
     detectionReason: string;
     /** 用户手动指定的下载器分类 */
-    selectedDownloader: XhsDownloaderType | null;
+    selectedDownloader: SupportedDownloaderType | null;
 }
 
 /** 服务端连通性与配置诊断单项结果 */

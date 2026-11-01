@@ -19,6 +19,9 @@ const userscriptHeader = `// ==UserScript==
 // @author       iBenzene
 // @match        https://www.xiaohongshu.com/*
 // @match        https://xiaohongshu.com/*
+// @match        https://www.bilibili.com/*
+// @match        https://bilibili.com/*
+// @match        https://m.bilibili.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_download
 // @grant        GM_getValue

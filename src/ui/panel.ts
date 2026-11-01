@@ -14,10 +14,10 @@ import {
     PageNoteContext,
     PluginSettings,
     TaskType,
-    XhsDownloaderType
+    SupportedDownloaderType
 } from '../types';
-import { extractUrlsFromInput, isXhsDownloader } from '../utils';
-import { xhsPageAdapter } from '../xhsPageAdapter';
+import { extractUrlsFromInput, isSupportedDownloader } from '../utils';
+import { pageAdapter } from '../pageAdapter';
 import {
     EntryPositionState,
     observeEntryPosition,
@@ -70,7 +70,7 @@ export class BenbenPluginUI {
     } | null = null;
     private duplicatePrompt: {
         urls: string[];
-        downloader: XhsDownloaderType;
+        downloader: SupportedDownloaderType;
         details: string;
         incomplete: boolean;
         resolvedKeys: Record<string, string>;
@@ -107,7 +107,7 @@ export class BenbenPluginUI {
         observeEntryPosition(this.shadowRoot, this.entryPosition);
 
         storage.subscribe(() => this.render());
-        xhsPageAdapter.onContextChange(() => this.render());
+        pageAdapter.onContextChange(() => this.render());
 
         this.render();
     }
@@ -263,7 +263,7 @@ export class BenbenPluginUI {
         if (this.hostEl && !this.hostEl.hasAttribute('data-platform')) {
             this.hostEl.setAttribute('data-platform', this.detectPlatform());
         }
-        const ctx = xhsPageAdapter.getCurrentContext();
+        const ctx = pageAdapter.getCurrentContext();
         resetEntryPosition(
             this.entryPosition,
             ctx ? `${ctx.noteId}:${ctx.viewMode}` : undefined
@@ -293,7 +293,7 @@ export class BenbenPluginUI {
             return '<div class="bb-entry-bar" hidden></div>';
         }
 
-        const effectiveType = xhsPageAdapter.getEffectiveDownloader(ctx);
+        const effectiveType = pageAdapter.getEffectiveDownloader(ctx);
         const needsChoice = !effectiveType;
         const typePills = renderTypePillsHtml(effectiveType, needsChoice);
 
@@ -476,6 +476,8 @@ export class BenbenPluginUI {
               <option value="小红书图片下载器">小红书图片</option>
               <option value="小红书实况图片下载器">小红书实况</option>
               <option value="小红书视频下载器">小红书视频</option>
+              <option value="哔哩哔哩视频下载器"
+                ${this.detectPlatform() === 'bili' ? 'selected' : ''}>哔哩哔哩视频</option>
             </select>
             <button type="button" class="bb-btn bb-btn-sm" data-action="submit-batch-save">批量收藏</button>
             <button type="button" class="bb-btn bb-btn-primary bb-btn-sm"
@@ -558,7 +560,7 @@ export class BenbenPluginUI {
                 : filtered
                       .map(item => {
                           const badges = renderSavedItemBadges(item);
-                          const supported = isXhsDownloader(
+                          const supported = isSupportedDownloader(
                               item.downloaderType
                           );
                           const safeUrl = escapeHtml(item.url);
@@ -956,9 +958,9 @@ export class BenbenPluginUI {
         if (action === 'select-note-type') {
             const dt = target.getAttribute(
                 'data-downloader'
-            ) as XhsDownloaderType;
+            ) as SupportedDownloaderType;
             if (dt) {
-                xhsPageAdapter.setManualDownloaderForCurrentNote(dt);
+                pageAdapter.setManualDownloaderForCurrentNote(dt);
             }
             return;
         }
@@ -970,11 +972,11 @@ export class BenbenPluginUI {
         }
 
         if (action === 'entry-download' || action === 'current-download') {
-            const ctx = xhsPageAdapter.getCurrentContext();
+            const ctx = pageAdapter.getCurrentContext();
             if (!ctx) {
                 return;
             }
-            const downloader = xhsPageAdapter.getEffectiveDownloader(ctx);
+            const downloader = pageAdapter.getEffectiveDownloader(ctx);
             if (!downloader) {
                 this.openPanel();
                 alert('无法确认当前笔记类型，请先选择「图片 / 视频 / 实况」');
@@ -990,11 +992,11 @@ export class BenbenPluginUI {
         }
 
         if (action === 'entry-save' || action === 'current-save') {
-            const ctx = xhsPageAdapter.getCurrentContext();
+            const ctx = pageAdapter.getCurrentContext();
             if (!ctx) {
                 return;
             }
-            const downloader = xhsPageAdapter.getEffectiveDownloader(ctx);
+            const downloader = pageAdapter.getEffectiveDownloader(ctx);
             if (!downloader) {
                 this.openPanel();
                 alert('无法确认当前笔记类型，请先选择「图片 / 视频 / 实况」');
@@ -1020,7 +1022,7 @@ export class BenbenPluginUI {
             ) as HTMLSelectElement | null;
             const text = textarea?.value || '';
             const downloader = (select?.value ||
-                '小红书图片下载器') as XhsDownloaderType;
+                '小红书图片下载器') as SupportedDownloaderType;
             const extraction = extractUrlsFromInput(text, 'skipWithWarning');
             if (extraction.urls.length === 0) {
                 alert('未找到有效链接，请输入至少一行链接');
@@ -1136,10 +1138,10 @@ export class BenbenPluginUI {
                 .filter(
                     i =>
                         i.status !== 'success' &&
-                        isXhsDownloader(i.downloaderType)
+                        isSupportedDownloader(i.downloaderType)
                 );
             if (itemsToDownload.length === 0) {
-                alert('当前没有待下载的小红书收藏项');
+                alert('当前没有支持下载的待下载收藏项');
                 return;
             }
             for (const item of itemsToDownload) {
@@ -1195,7 +1197,7 @@ export class BenbenPluginUI {
             const url = target.getAttribute('data-url');
             const dt = target.getAttribute(
                 'data-downloader'
-            ) as XhsDownloaderType;
+            ) as SupportedDownloaderType;
             if (url && dt) {
                 taskQueue.enqueueTask({
                     downloaderType: dt,
@@ -1340,7 +1342,7 @@ export class BenbenPluginUI {
 
     private async handleSaveFlow(
         urls: string[],
-        downloader: XhsDownloaderType,
+        downloader: SupportedDownloaderType,
         title: string
     ): Promise<void> {
         for (const u of urls) {

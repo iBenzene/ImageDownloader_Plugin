@@ -8,6 +8,7 @@ import {
 import {
     AllDownloaderType,
     LivePhotoMediaItem,
+    SupportedDownloaderType,
     XhsDownloaderType
 } from './types';
 
@@ -243,6 +244,12 @@ export const isXhsDownloader = (
     downloader: string
 ): downloader is XhsDownloaderType => {
     return (XHS_DOWNLOADERS as readonly string[]).includes(downloader);
+};
+
+export const isSupportedDownloader = (
+    downloader: string
+): downloader is SupportedDownloaderType => {
+    return isXhsDownloader(downloader) || downloader === '哔哩哔哩视频下载器';
 };
 
 export const getShortDownloaderName = (
@@ -618,7 +625,7 @@ export const buildMediaFilename = (options: {
         totalCount
     } = options;
     const localKey = extractLocalContentKey(sourceUrl, downloaderType);
-    let noteTag = localKey ? localKey.replace(':', '-') : '';
+    let noteTag = localKey ? localKey.replace(/:/g, '-') : '';
     if (!noteTag) {
         // 尝试从短链接或路径尾部提取标识符
         try {

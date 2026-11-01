@@ -1,7 +1,11 @@
 // src/xhsPageAdapter.ts
 
-import { PageNoteContext, XhsDownloaderType } from './types';
-import { normalizeXhsNoteUrl } from './utils';
+import {
+    PageNoteContext,
+    SupportedDownloaderType,
+    XhsDownloaderType
+} from './types';
+import { isXhsDownloader, normalizeXhsNoteUrl } from './utils';
 
 export interface RawNoteStateInfo {
     noteId?: string;
@@ -310,9 +314,9 @@ export class XhsPageAdapter {
 
     /** 记录用户针对当前笔记手动指定的下载器选项 */
     public setManualDownloaderForCurrentNote(
-        downloader: XhsDownloaderType
+        downloader: SupportedDownloaderType
     ): void {
-        if (!this.currentContext) {
+        if (!this.currentContext || !isXhsDownloader(downloader)) {
             return;
         }
         this.manualTypeOverrides.set(this.currentContext.noteId, downloader);
@@ -325,7 +329,7 @@ export class XhsPageAdapter {
 
     public getEffectiveDownloader(
         ctx: PageNoteContext | null = this.currentContext
-    ): XhsDownloaderType | null {
+    ): SupportedDownloaderType | null {
         if (!ctx) {
             return null;
         }
@@ -450,7 +454,7 @@ export class XhsPageAdapter {
         };
     }
 
-    private updateContext(next: PageNoteContext | null): void {
+    protected updateContext(next: PageNoteContext | null): void {
         const prev = this.currentContext;
         const isUnchanged =
             prev?.noteId === next?.noteId &&

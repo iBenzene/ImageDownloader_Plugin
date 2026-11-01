@@ -37,9 +37,66 @@ export const positionEntryBar = (
     view: Window,
     state?: EntryPositionState
 ): void => {
-    const scopes = doc.querySelectorAll('#noteContainer, .note-container');
+    if (
+        ['www.bilibili.com', 'bilibili.com', 'm.bilibili.com'].includes(
+            view.location.hostname
+        )
+    ) {
+        const meta = doc.querySelector<HTMLElement>(
+            '#viewbox_report .video-info-meta'
+        );
+        const rect = meta?.getBoundingClientRect();
+        bar.style.visibility = 'hidden';
+        if (
+            !meta ||
+            !rect ||
+            rect.width <= 0 ||
+            rect.top < 0 ||
+            rect.bottom > view.innerHeight
+        ) {
+            return;
+        }
+        const contentRight = Array.from(
+            meta.querySelectorAll<HTMLElement>('.item')
+        )
+            .map(item => item.getBoundingClientRect())
+            .filter(item => item.width > 0 && item.height > 0)
+            .reduce((right, item) => Math.max(right, item.right), rect.left);
+        const right = Math.min(rect.right, view.innerWidth - 8);
+        const available = right - contentRight - 16;
+        bar.style.maxWidth = `${Math.max(0, available)}px`;
+        const barRect = bar.getBoundingClientRect();
+        const playerTop = doc
+            .querySelector('#bilibili-player')
+            ?.getBoundingClientRect().top;
+        const y = rect.top + rect.height / 2;
+        // 剩余空间不足或会遮挡播放器时隐藏悬浮栏, 避免覆盖页面信息
+        if (
+            available < barRect.width ||
+            available < 240 ||
+            (playerTop !== undefined && y + barRect.height / 2 > playerTop)
+        ) {
+            return;
+        }
+        bar.style.visibility = 'visible';
+        placeEntryBar(
+            bar,
+            view,
+            state?.manual ?? { x: right - barRect.width / 2, y }
+        );
+        return;
+    }
+    // B 站记笔记面板同样使用 .note-container, 仅在小红书下限定容器查找范围
+    const isXhs = ['www.xiaohongshu.com', 'xiaohongshu.com'].includes(
+        view.location.hostname
+    );
+    const scopes = isXhs
+        ? doc.querySelectorAll('#noteContainer, .note-container')
+        : [];
     const roots: ParentNode[] = scopes.length ? Array.from(scopes) : [doc];
     const mediaSelectors = [
+        '#bilibili-player',
+        '.bpx-player-container',
         '.media-container',
         '.player-container',
         '.xgplayer',
@@ -199,7 +256,8 @@ export const observeEntryPosition = (
         const resize = new view.ResizeObserver(update);
         resize.observe(doc.body);
         const mediaQuery =
-            '#noteContainer, .note-container, .media-container, .player-container, .note-slider';
+            '#noteContainer, .note-container, .media-container, .player-container, .note-slider, ' +
+            '#viewbox_report .video-info-meta, #bilibili-player';
         // 在单页路由切换或图片懒加载完成后重新捕获媒体节点
         const observeMedia = () => {
             resize.disconnect();

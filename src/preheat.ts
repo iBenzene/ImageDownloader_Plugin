@@ -6,7 +6,7 @@ import { savedLinksManager } from './savedLinks';
 import { storage } from './storage';
 import { syncCoordinator } from './sync';
 import { AllDownloaderType } from './types';
-import { isXhsDownloader, verifyPreheatCacheResult } from './utils';
+import { isSupportedDownloader, verifyPreheatCacheResult } from './utils';
 
 export interface PreheatItemProgress {
     currentUrlIndex: number;
@@ -81,8 +81,8 @@ class PreheatService {
                 break;
             }
 
-            if (!isXhsDownloader(item.downloaderType)) {
-                const unsupMsg = `首期仅支持小红书资源预热（当前类型：${item.downloaderType}）`;
+            if (!isSupportedDownloader(item.downloaderType)) {
+                const unsupMsg = `仅支持小红书与哔哩哔哩资源预热（当前类型：${item.downloaderType}）`;
                 if (item.savedLinkId) {
                     savedLinksManager.updatePreheatResult(item.savedLinkId, {
                         error: unsupMsg,
