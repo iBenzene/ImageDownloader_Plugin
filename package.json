@@ -1,6 +1,6 @@
 {
     "name": "benben-image-downloader-plugin",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "description": "《苯苯存图》浏览器插件",
     "private": true,
     "type": "module",
