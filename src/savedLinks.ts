@@ -150,7 +150,12 @@ class SavedLinksManager {
         }
         if (contentKey) {
             return visible.find(
-                item => item.contentKey && item.contentKey === contentKey
+                item =>
+                    (item.contentKey ||
+                        extractLocalContentKey(
+                            item.url,
+                            item.downloaderType
+                        )) === contentKey
             );
         }
         return undefined;

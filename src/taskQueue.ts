@@ -9,6 +9,7 @@ import { CURRENT_TAB_ID, storage } from './storage';
 import { syncCoordinator } from './sync';
 import { AllDownloaderType, TaskItem, TaskStatus, TaskType } from './types';
 import {
+    extractLocalContentKey,
     generateUUID,
     isSameId,
     parseTimestampMs,
@@ -261,10 +262,18 @@ class TaskQueueManager {
         this.updateTaskState(taskId, () => ({ downloadFailurePending: false }));
     }
 
-    /**
-     * 查询指定链接是否处于待执行或正在执行的任务中
-     * 用于页面按钮与列表项的状态防抖显示
-     */
+    /** 按内容标识关联同一笔记, 保留原链接中的访问凭据 */
+    private taskMatchesUrl(task: TaskItem, url: string): boolean {
+        if (task.urls.includes(url)) return true;
+        const key = extractLocalContentKey(url, task.downloaderType);
+        if (!key) return false;
+        return task.urls.some(
+            source =>
+                extractLocalContentKey(source, task.downloaderType) === key
+        );
+    }
+
+    /** 查询指定内容的待执行或运行中任务, 用于页面按钮防抖 */
     public getActiveTaskForUrl(
         url: string,
         type?: TaskType
@@ -275,7 +284,7 @@ class TaskQueueManager {
                 t =>
                     (t.status === 'pending' || t.status === 'running') &&
                     (!type || t.type === type) &&
-                    t.urls.includes(url)
+                    this.taskMatchesUrl(t, url)
             );
     }
 
@@ -293,7 +302,9 @@ class TaskQueueManager {
         }
         const candidates = storage
             .getTasks()
-            .filter(t => (!type || t.type === type) && t.urls.includes(url));
+            .filter(
+                t => (!type || t.type === type) && this.taskMatchesUrl(t, url)
+            );
         if (candidates.length === 0) {
             return undefined;
         }

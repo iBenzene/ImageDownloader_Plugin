@@ -5,6 +5,61 @@ import test from 'node:test';
 import { getGmBridge, resetGmBridge } from '../src/gmAdapter';
 import { storage } from '../src/storage';
 import { taskQueue } from '../src/taskQueue';
+import { TaskItem } from '../src/types';
+
+test('Task lookup follows content identity while isolating other notes and video parts', () => {
+    resetGmBridge();
+    const url = 'https://www.xiaohongshu.com/explore/6afb1b95000000001b01f16a';
+    const makeTask = (patch: Partial<TaskItem>): TaskItem => ({
+        completedMediaCount: 0,
+        createdAt: '2026-11-16T00:00:00Z',
+        currentMediaIndex: 0,
+        currentNoteIndex: 1,
+        downloaderType: '小红书实况图片下载器',
+        id: 'preheat',
+        mediaSubTasks: [],
+        message: '预热成功',
+        status: 'completed',
+        title: '预热',
+        totalMediaCount: 0,
+        totalNoteCount: 1,
+        type: 'preheat',
+        updatedAt: '2026-11-16T00:00:00Z',
+        urls: [`${url}?xsec_token=old`],
+        ...patch
+    });
+    const completed = makeTask({});
+    const active = makeTask({
+        id: 'download',
+        status: 'running',
+        type: 'download'
+    });
+    storage.setTasks([completed, active]);
+    const reopened = `${url}?xsec_token=new&xsec_source=pc_user`;
+    assert.equal(taskQueue.getActiveTaskForUrl(reopened)?.id, 'download');
+    assert.equal(
+        taskQueue.getLatestTaskForUrl(reopened, 'preheat')?.id,
+        'preheat'
+    );
+    assert.equal(
+        taskQueue.getLatestTaskForUrl(url.replace('6afb', '6abc')),
+        undefined
+    );
+    assert.equal(taskQueue.getActiveTaskForUrl(reopened, 'preheat'), undefined);
+    const video = 'https://www.bilibili.com/video/BV1xokcBHE5p/';
+    storage.setTasks([
+        makeTask({
+            downloaderType: '哔哩哔哩视频下载器',
+            urls: [video + '?p=2']
+        })
+    ]);
+    assert.equal(
+        taskQueue.getLatestTaskForUrl(video + '?p=2&spm_id_from=test')?.id,
+        'preheat'
+    );
+    assert.equal(taskQueue.getLatestTaskForUrl(video + '?p=1'), undefined);
+    storage.setTasks([]);
+});
 
 test.beforeEach(() => {
     resetGmBridge();

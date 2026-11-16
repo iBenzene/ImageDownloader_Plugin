@@ -234,6 +234,29 @@ test('Entry bar status transitions from detection reason to progress and final r
         assert.match(statusEl().textContent || '', /预热成功，共缓存 1 个资源/);
         assert.equal(statusEl().classList.contains('is-ok'), true);
 
+        // 同一笔记的校验参数变化后仍应关联原任务
+        browser.history.replaceState(
+            null,
+            '',
+            `${noteUrl}-changed&xsec_source=pc_user`
+        );
+        xhsPageAdapter.evaluateCurrentPage();
+        assert.match(statusEl().textContent || '', /预热成功，共缓存 1 个资源/);
+
+        // 任务记录清理后仍从收藏恢复预热结果, 不依赖旧记录的 contentKey
+        const savedTasks = storage.getTasks();
+        storage.setSavedLinks(
+            storage.getSavedLinks().map(item => ({ ...item, contentKey: null }))
+        );
+        storage.setTasks([]);
+        assert.match(statusEl().textContent || '', /预热成功，共缓存 1 个资源/);
+        const savedItems = storage.getSavedLinks();
+        storage.setSavedLinks(
+            savedItems.map(item => ({ ...item, isDeleted: true }))
+        );
+        assert.equal(statusEl().textContent?.trim(), '已识别包含实况图片');
+        storage.setSavedLinks(savedItems);
+        storage.setTasks(savedTasks);
         // 3. 点击下载（强制无缓存实时解析路径）验证下载进度 -> 下载结果
         storage.setSavedLinks([]);
         extractPending = new Promise<void>(resolve => {

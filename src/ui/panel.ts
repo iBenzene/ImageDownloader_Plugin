@@ -16,7 +16,11 @@ import {
     TaskType,
     SupportedDownloaderType
 } from '../types';
-import { extractUrlsFromInput, isSupportedDownloader } from '../utils';
+import {
+    extractLocalContentKey,
+    extractUrlsFromInput,
+    isSupportedDownloader
+} from '../utils';
 import { pageAdapter } from '../pageAdapter';
 import {
     EntryPositionState,
@@ -376,6 +380,12 @@ export class BenbenPluginUI {
 
         const activeTask = taskQueue.getActiveTaskForUrl(ctx.url);
         const latestTask = activeTask ?? taskQueue.getLatestTaskForUrl(ctx.url);
+        const savedItem = savedLinksManager.getActiveItemByUrl(
+            ctx.url,
+            effectiveType
+                ? extractLocalContentKey(ctx.url, effectiveType)
+                : null
+        );
         const isPreparingSave = this.preparingSaveUrls.has(ctx.url);
         const hasPendingDuplicate = Boolean(
             this.duplicatePrompt?.urls.includes(ctx.url)
@@ -403,6 +413,27 @@ export class BenbenPluginUI {
                 statusClass = 'is-error';
             } else {
                 statusClass = '';
+            }
+        }
+        if (
+            !isPreparingSave &&
+            !hasPendingDuplicate &&
+            !latestTask &&
+            savedItem
+        ) {
+            if (savedItem.preheatState === 'failed') {
+                statusMsg = savedItem.preheatError || '预热失败';
+                statusClass = 'is-error';
+            } else if (savedItem.preheatState === 'preheating') {
+                statusMsg = '预热中...';
+                statusClass = '';
+            } else if (savedItem.cachedUrls?.length) {
+                const label =
+                    savedItem.preheatState === 'preheated'
+                        ? '预热成功'
+                        : '已有缓存';
+                statusMsg = `${label}，共缓存 ${savedItem.cachedUrls.length} 个资源`;
+                statusClass = 'is-ok';
             }
         }
         const disabledAttr = taskRunning ? 'disabled' : '';
