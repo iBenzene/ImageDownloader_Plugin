@@ -40,6 +40,7 @@ class PreheatService {
             downloaderType: AllDownloaderType;
         }>;
         taskId?: string;
+        isCurrent?: () => boolean;
         signal?: AbortSignal;
         onProgress?: (p: PreheatItemProgress) => void;
     }): Promise<PreheatBatchOutcome> {
@@ -67,6 +68,7 @@ class PreheatService {
         logger.info(`开始预热 ${total} 个链接`, { taskId: options.taskId });
 
         for (let idx = 0; idx < total; idx++) {
+            if (options.isCurrent?.() === false) break;
             const item = options.items[idx];
             const currentLine = idx + 1;
 
@@ -134,6 +136,7 @@ class PreheatService {
                     extracted.rawMediaUrls,
                     item.downloaderType
                 );
+                if (options.isCurrent?.() === false) break;
 
                 if (!verification.confirmed) {
                     const errMsg =
@@ -184,6 +187,7 @@ class PreheatService {
                     totalUrlCount: total
                 });
             } catch (err) {
+                if (options.isCurrent?.() === false) break;
                 const errMsg = err instanceof Error ? err.message : String(err);
                 if (targetSaved) {
                     savedLinksManager.updatePreheatResult(targetSaved.id, {

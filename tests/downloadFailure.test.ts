@@ -189,6 +189,10 @@ test('Viewing and collapsing preheat failures keep badges; ignoring updates pers
                 .querySelector<HTMLButtonElement>(`[data-action="${action}"]`)!
                 .click();
         assert.ok(root.querySelector('.bb-failure-toast'));
+        assert.match(
+            root.querySelector('.bb-failure-toast strong')!.textContent!,
+            /失败/
+        );
         click('dismiss-failure-toast');
         assert.ok(root.querySelector('.bb-failure-reminder'));
         assert.equal(taskQueue.getUnresolvedTasks().length, 1);

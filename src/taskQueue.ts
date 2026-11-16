@@ -37,6 +37,7 @@ class TaskQueueManager {
     private activeAbortControllers = new Map<string, AbortController>();
     private leaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
     private queueWakeTimer: ReturnType<typeof setInterval> | null = null;
+    private suspectedTasks = new Map<string, number>();
 
     constructor() {
         this.recoverInterruptedTasks();
@@ -58,6 +59,7 @@ class TaskQueueManager {
         }
         this.recoverInterruptedTasks();
         this.queueWakeTimer = setInterval(() => {
+            this.recoverInterruptedTasks();
             void this.processQueue();
         }, 2000);
         this.queueWakeTimer?.unref?.();
@@ -77,39 +79,56 @@ class TaskQueueManager {
 
     /**
      * 页面加载或刷新时核查并恢复队列状态
-     * 将失去执行租约的运行中任务安全转置为中断待确认状态, 绝不盲目重下或误报完成
+     * 将失去执行租约的运行中任务安全转置为失败状态, 绝不盲目重下或误报完成
      */
     public recoverInterruptedTasks(): number {
         const tasks = storage.getTasks();
-        const activeLease = storage.getActiveLease(this.getLeaseKey());
+        const lease = storage.getLease(this.getLeaseKey());
         let recoveredCount = 0;
         const now = toIso8601WithMs();
 
         for (let i = 0; i < tasks.length; i++) {
             const task = tasks[i];
             if (task.status === 'running') {
-                const isHeldByOtherLiveTab =
-                    activeLease &&
-                    activeLease.tabId !== CURRENT_TAB_ID &&
-                    activeLease.taskId === task.id;
-
-                if (!isHeldByOtherLiveTab) {
+                const suspectKey = `${storage.getActiveNamespace()}:${task.id}`;
+                const matchingLease =
+                    lease?.taskId === task.id &&
+                    (!task.executorTabId || lease.tabId === task.executorTabId);
+                const deadline = matchingLease
+                    ? lease.expiresAt + 45000
+                    : parseTimestampMs(task.updatedAt || task.createdAt) +
+                      60000;
+                if (Date.now() < deadline) {
+                    this.suspectedTasks.delete(suspectKey);
+                    continue;
+                }
+                const firstSeen = this.suspectedTasks.get(suspectKey);
+                if (firstSeen === undefined) {
+                    this.suspectedTasks.set(suspectKey, Date.now());
+                    continue;
+                }
+                if (Date.now() - firstSeen >= 2000) {
                     tasks[i] = {
                         ...task,
+                        downloadFailureId: generateUUID(),
+                        downloadFailurePending:
+                            task.type === 'download' || task.type === 'preheat',
+                        error: '页面关闭或刷新，任务中断',
                         mediaSubTasks: (task.mediaSubTasks || []).map(st =>
                             st.status === 'running' || st.status === 'pending'
                                 ? {
                                       ...st,
-                                      error: '任务中断待确认',
-                                      status: 'interrupted'
+                                      error: '任务中断',
+                                      status: 'failed'
                                   }
                                 : st
                         ),
-                        message:
-                            '页面刷新或关闭导致任务中断，结果待确认（可手动重试）',
-                        status: 'interrupted',
+                        message: '页面关闭或刷新，任务中断',
+                        status: 'failed',
                         updatedAt: now
                     };
+                    this.suspectedTasks.delete(suspectKey);
+                    this.activeAbortControllers.get(task.id)?.abort();
                     recoveredCount++;
                 }
             }
@@ -118,10 +137,63 @@ class TaskQueueManager {
         if (recoveredCount > 0) {
             storage.setTasks(tasks);
             logger.warn(
-                `恢复任务队列，已将 ${recoveredCount} 个未确认结果的任务标记为中断待确认`
+                `恢复任务队列，已将 ${recoveredCount} 个失联任务标记为失败`
             );
         }
+        this.repairPreheatStates(tasks);
         return recoveredCount;
+    }
+
+    private repairPreheatStates(tasks: TaskItem[]): void {
+        let added = false;
+        for (const item of savedLinksManager.getVisibleItems()) {
+            if (item.preheatState !== 'preheating') continue;
+            const hasActiveTask = tasks.some(
+                task =>
+                    task.type === 'preheat' &&
+                    (task.status === 'running' || task.status === 'pending') &&
+                    (task.savedLinkId === item.id ||
+                        task.urls.includes(item.url))
+            );
+            if (!hasActiveTask) {
+                savedLinksManager.updatePreheatResult(item.id, {
+                    error: '预热中断',
+                    state: 'failed'
+                });
+                if (
+                    !tasks.some(
+                        task =>
+                            task.type === 'preheat' &&
+                            (task.savedLinkId === item.id ||
+                                task.urls.includes(item.url))
+                    )
+                ) {
+                    const now = toIso8601WithMs();
+                    tasks.unshift({
+                        completedMediaCount: 0,
+                        createdAt: now,
+                        currentMediaIndex: 0,
+                        currentNoteIndex: 1,
+                        downloaderType: item.downloaderType,
+                        downloadFailureId: generateUUID(),
+                        downloadFailurePending: true,
+                        id: generateUUID(),
+                        mediaSubTasks: [],
+                        message: '预热中断',
+                        savedLinkId: item.id,
+                        status: 'failed',
+                        title: '预热资源',
+                        totalMediaCount: 0,
+                        totalNoteCount: 1,
+                        type: 'preheat',
+                        updatedAt: now,
+                        urls: [item.url]
+                    });
+                    added = true;
+                }
+            }
+        }
+        if (added) storage.setTasks(tasks);
     }
 
     private markCurrentTabTasksInterruptedOnUnload(): void {
@@ -134,17 +206,21 @@ class TaskQueueManager {
             if (t.status === 'running' && t.executorTabId === CURRENT_TAB_ID) {
                 tasks[i] = {
                     ...t,
+                    downloadFailureId: generateUUID(),
+                    downloadFailurePending:
+                        t.type === 'download' || t.type === 'preheat',
+                    error: '页面关闭或刷新，任务中断',
                     mediaSubTasks: (t.mediaSubTasks || []).map(st =>
                         st.status === 'running' || st.status === 'pending'
                             ? {
                                   ...st,
                                   error: '页面卸载中断',
-                                  status: 'interrupted'
+                                  status: 'failed'
                               }
                             : st
                     ),
-                    message: '页面关闭或刷新导致任务中断，结果待确认',
-                    status: 'interrupted',
+                    message: '页面关闭或刷新，任务中断',
+                    status: 'failed',
                     updatedAt: now
                 };
                 changed = true;
@@ -154,6 +230,7 @@ class TaskQueueManager {
         if (changed) {
             storage.setTasks(tasks);
         }
+        this.repairPreheatStates(tasks);
         storage.releaseLease(this.getLeaseKey());
     }
 
@@ -204,7 +281,7 @@ class TaskQueueManager {
 
     /**
      * 查询指定链接最近一次关联的任务记录
-     * 优先返回待执行或运行中的任务, 其次返回最近更新的已完成/失败/取消/中断任务
+     * 优先返回待执行或运行中的任务, 其次返回最近更新的已完成/失败/取消任务
      */
     public getLatestTaskForUrl(
         url: string,
@@ -395,7 +472,7 @@ class TaskQueueManager {
     }
 
     /**
-     * 重试中断, 失败或已取消的任务
+     * 重试失败或已取消的任务
      * 支持传入仅重试失败媒体项或强制重新解析缓存的选项
      */
     public retryTask(
@@ -526,7 +603,15 @@ class TaskQueueManager {
     private startLeaseHeartbeat(leaseKey: string, taskId: string): void {
         this.stopLeaseHeartbeat();
         this.leaseHeartbeatTimer = setInterval(() => {
-            storage.renewLease(leaseKey, 15000, taskId);
+            const task = this.getTaskById(taskId);
+            if (
+                task?.status !== 'running' ||
+                task.executorTabId !== CURRENT_TAB_ID ||
+                !storage.renewLease(leaseKey, 15000, taskId)
+            ) {
+                this.activeAbortControllers.get(taskId)?.abort();
+                this.stopLeaseHeartbeat();
+            }
         }, 4000);
         this.leaseHeartbeatTimer?.unref?.();
     }
@@ -581,6 +666,24 @@ class TaskQueueManager {
             status: 'running'
         }));
 
+        const namespace = storage.getActiveNamespace();
+        const isCurrent = () => {
+            const current = this.getTaskById(task.id);
+            return (
+                storage.getActiveNamespace() === namespace &&
+                this.activeAbortControllers.get(task.id) === controller &&
+                current?.status === 'running' &&
+                current.executorTabId === CURRENT_TAB_ID
+            );
+        };
+        const update = (updater: (prev: TaskItem) => Partial<TaskItem>) => {
+            if (!isCurrent()) {
+                controller.abort();
+                return null;
+            }
+            return this.updateTaskState(task.id, updater);
+        };
+
         try {
             if (task.type === 'sync') {
                 const res = await syncCoordinator.syncNow({
@@ -594,7 +697,7 @@ class TaskQueueManager {
                 const syncSummary =
                     `同步完成（收藏推送 ${res.savedLinks.pushedCount}/拉取 ${res.savedLinks.pulledCount}，` +
                     `历史推送 ${res.history.pushedCount}/拉取 ${res.history.pulledCount}）`;
-                this.updateTaskState(task.id, () => ({
+                update(() => ({
                     currentNoteIndex: 1,
                     error: ok ? undefined : errMsg,
                     message: ok ? syncSummary : `同步失败：${errMsg}`,
@@ -606,6 +709,7 @@ class TaskQueueManager {
 
             if (task.type === 'preheat') {
                 const outcome = await preheatService.preheatLinks({
+                    isCurrent,
                     items: task.urls.map(u => ({
                         downloaderType: task.downloaderType,
                         savedLinkId:
@@ -615,7 +719,7 @@ class TaskQueueManager {
                         url: u
                     })),
                     onProgress: p => {
-                        this.updateTaskState(task.id, () => ({
+                        update(() => ({
                             currentNoteIndex: p.currentUrlIndex,
                             message: p.message,
                             totalNoteCount: p.totalUrlCount
@@ -626,7 +730,7 @@ class TaskQueueManager {
                 });
 
                 if (controller.signal.aborted) {
-                    this.updateTaskState(task.id, () => ({
+                    update(() => ({
                         message:
                             '已取消预热（已发往服务端的缓存操作可能仍在继续）',
                         status: 'cancelled'
@@ -634,7 +738,7 @@ class TaskQueueManager {
                     return;
                 }
 
-                this.updateTaskState(task.id, () => ({
+                update(() => ({
                     completedMediaCount: outcome.totalCachedCount,
                     error: outcome.ok ? undefined : outcome.error,
                     message: outcome.ok
@@ -673,8 +777,9 @@ class TaskQueueManager {
                         downloaderType: task.downloaderType,
                         existingSubTasksToRetry: retrySubTasks,
                         forceReExtract: task.forceReExtract,
+                        isCurrent,
                         onProgress: p => {
-                            this.updateTaskState(task.id, () => ({
+                            update(() => ({
                                 completedMediaCount: p.completedMediaCount,
                                 currentMediaIndex: p.currentMediaIndex,
                                 currentNoteIndex: p.currentNoteIndex,
@@ -707,7 +812,7 @@ class TaskQueueManager {
                 }
 
                 if (controller.signal.aborted) {
-                    this.updateTaskState(task.id, () => ({
+                    update(() => ({
                         message: '下载已取消',
                         status: 'cancelled'
                     }));
@@ -725,7 +830,7 @@ class TaskQueueManager {
                           ? '部分媒体下载失败，可点击重试'
                           : '下载失败');
 
-                this.updateTaskState(task.id, () => ({
+                update(() => ({
                     error: allSuccess ? undefined : finalMsg,
                     message: finalMsg,
                     status: finalStatus
@@ -733,7 +838,7 @@ class TaskQueueManager {
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            this.updateTaskState(task.id, () => ({
+            update(() => ({
                 error: msg,
                 message: controller.signal.aborted
                     ? '已取消'
@@ -741,7 +846,9 @@ class TaskQueueManager {
                 status: controller.signal.aborted ? 'cancelled' : 'failed'
             }));
         } finally {
-            this.activeAbortControllers.delete(task.id);
+            if (this.activeAbortControllers.get(task.id) === controller) {
+                this.activeAbortControllers.delete(task.id);
+            }
         }
     }
 

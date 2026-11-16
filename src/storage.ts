@@ -224,11 +224,21 @@ class StorageManager {
     // 收藏数据持久化操作 (按服务端空间隔离)
 
     public getSavedLinks(namespace?: string): SavedLinkItem[] {
-        const items = getGmBridge().getValue<SavedLinkItem[]>(
-            this.nsKey('saved_links', namespace),
-            []
-        );
-        return Array.isArray(items) ? items : [];
+        const key = this.nsKey('saved_links', namespace);
+        const items = getGmBridge().getValue<SavedLinkItem[]>(key, []);
+        if (!Array.isArray(items)) return [];
+        let changed = false;
+        const migrated = items.map(item => {
+            if ((item.preheatState as string) !== 'interrupted') return item;
+            changed = true;
+            return {
+                ...item,
+                preheatError: '预热中断',
+                preheatState: 'failed' as const
+            };
+        });
+        if (changed) getGmBridge().setValue(key, migrated);
+        return changed ? migrated : items;
     }
 
     public setSavedLinks(items: SavedLinkItem[], namespace?: string): void {
@@ -325,7 +335,34 @@ class StorageManager {
             );
         }
         const items = getGmBridge().getValue<TaskItem[]>(key, []);
-        return Array.isArray(items) ? items : [];
+        if (!Array.isArray(items)) return [];
+        let changed = false;
+        const migrated = items.map(task => {
+            const legacyTask = (task.status as string) === 'interrupted';
+            const legacySubTasks = task.mediaSubTasks?.some(
+                subtask => (subtask.status as string) === 'interrupted'
+            );
+            if (!legacyTask && !legacySubTasks) return task;
+            changed = true;
+            const result: TaskItem = {
+                ...task,
+                mediaSubTasks: (task.mediaSubTasks || []).map(subtask =>
+                    (subtask.status as string) === 'interrupted'
+                        ? { ...subtask, error: '任务中断', status: 'failed' }
+                        : subtask
+                )
+            };
+            if (legacyTask) {
+                result.status = 'failed';
+                result.message = '页面关闭或刷新，任务中断';
+                result.error = result.message;
+                result.downloadFailurePending ??=
+                    task.type === 'download' || task.type === 'preheat';
+            }
+            return result;
+        });
+        if (changed) getGmBridge().setValue(key, migrated);
+        return changed ? migrated : items;
     }
 
     public setTasks(items: TaskItem[], namespace?: string): void {
@@ -412,13 +449,18 @@ class StorageManager {
     }
 
     public getActiveLease(leaseKey: string): LeaseRecord | null {
+        const current = this.getLease(leaseKey);
+        if (!current || current.expiresAt <= Date.now()) {
+            return null;
+        }
+        return current;
+    }
+
+    public getLease(leaseKey: string): LeaseRecord | null {
         const current = getGmBridge().getValue<LeaseRecord | null>(
             leaseKey,
             null
         );
-        if (!current || current.expiresAt <= Date.now()) {
-            return null;
-        }
         return current;
     }
 }

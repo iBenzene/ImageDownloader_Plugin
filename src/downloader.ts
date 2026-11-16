@@ -151,6 +151,7 @@ class DownloadService {
         currentNoteIndex?: number;
         totalNoteCount?: number;
         taskId?: string;
+        isCurrent?: () => boolean;
         signal?: AbortSignal;
         onProgress?: (p: NoteDownloadProgress) => void;
     }): Promise<NoteDownloadOutcome> {
@@ -322,6 +323,7 @@ class DownloadService {
                     const errMsg = `【${currentNoteIndex} / ${totalNoteCount}】${rawErr}`;
                     this.recordOutcomeToHistoryAndSaved({
                         downloaderType: options.downloaderType,
+                        isCurrent: options.isCurrent,
                         isSuccess: false,
                         mediaCount: 0,
                         savedLinkId: matchedSaved?.id,
@@ -357,6 +359,7 @@ class DownloadService {
             const emptyMsg = `[${currentNoteIndex} / ${totalNoteCount}] 未提取到图片或视频的链接`;
             this.recordOutcomeToHistoryAndSaved({
                 downloaderType: options.downloaderType,
+                isCurrent: options.isCurrent,
                 isSuccess: false,
                 mediaCount: 0,
                 savedLinkId: matchedSaved?.id,
@@ -434,6 +437,7 @@ class DownloadService {
                     break;
                 }
                 const subTask = subTasks[subIdx];
+                if (options.isCurrent?.() === false) return;
 
                 if (options.signal?.aborted) {
                     subTask.status = 'cancelled';
@@ -513,6 +517,7 @@ class DownloadService {
         // 落地记录至下载历史并更新本地收藏记录的状态
         this.recordOutcomeToHistoryAndSaved({
             downloaderType: options.downloaderType,
+            isCurrent: options.isCurrent,
             isSuccess: allCompleted,
             mediaCount: completedLogicalCount,
             savedLinkId: matchedSaved?.id,
@@ -587,12 +592,14 @@ class DownloadService {
     }
 
     private recordOutcomeToHistoryAndSaved(options: {
+        isCurrent?: () => boolean;
         url: string;
         downloaderType: AllDownloaderType;
         savedLinkId?: string;
         isSuccess: boolean;
         mediaCount: number;
     }): void {
+        if (options.isCurrent?.() === false) return;
         historyManager.addRecord({
             downloaderType: options.downloaderType,
             isSuccess: options.isSuccess,

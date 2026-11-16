@@ -88,11 +88,25 @@ export class BenbenPluginUI {
             downloadCount && preheatCount
                 ? `下载失败 ${downloadCount} 个，预热失败 ${preheatCount} 个`
                 : `${downloadCount ? '下载' : '预热'}未完成，请查看详情后重试。`;
+        const retryingCount = tasks.filter(
+            task => task.status === 'running' || task.status === 'pending'
+        ).length;
+        const suffix = retryingCount ? '待处理' : '失败';
+        const noticeDetail = retryingCount
+            ? [
+                  tasks.length - retryingCount
+                      ? `失败 ${tasks.length - retryingCount} 个`
+                      : '',
+                  retryingCount ? `重试中 ${retryingCount} 个` : ''
+              ]
+                  .filter(Boolean)
+                  .join('，')
+            : detail;
         return showToast
             ? `<div class="bb-failure-toast" role="alert">
                 <span class="bb-failure-icon" aria-hidden="true">!</span>
-                <div><strong>${tasks.length} 个${taskLabel}失败</strong>
-                <div class="bb-failure-detail">${detail}</div>
+                <div><strong>${tasks.length} 个${taskLabel}${suffix}</strong>
+                <div class="bb-failure-detail">${noticeDetail}</div>
                 <div class="bb-failure-actions">
                   <button type="button" class="bb-btn bb-btn-primary bb-btn-sm" data-action="view-task-failures">查看详情</button>
                   <button type="button" class="bb-btn bb-btn-sm" data-action="dismiss-failure-toast">稍后处理</button>
@@ -387,8 +401,6 @@ export class BenbenPluginUI {
                     : 'is-ok';
             } else if (latestTask.status === 'failed') {
                 statusClass = 'is-error';
-            } else if (latestTask.status === 'interrupted') {
-                statusClass = 'is-warn';
             } else {
                 statusClass = '';
             }
@@ -694,14 +706,12 @@ export class BenbenPluginUI {
                                   : '';
                           const retryBtn =
                               task.status === 'failed' ||
-                              task.status === 'cancelled' ||
-                              task.status === 'interrupted'
+                              task.status === 'cancelled'
                                   ? '<button type="button" class="bb-btn bb-btn-sm" ' +
                                     `data-action="retry-task" data-id="${task.id}">重试</button>`
                                   : '';
                           const reExtractBtn =
-                              (task.status === 'failed' ||
-                                  task.status === 'interrupted') &&
+                              task.status === 'failed' &&
                               task.type === 'download'
                                   ? '<button type="button" class="bb-btn bb-btn-sm" data-action="retry-task-reextract" ' +
                                     `data-id="${task.id}" title="忽略缓存重新解析重试">重新解析</button>`

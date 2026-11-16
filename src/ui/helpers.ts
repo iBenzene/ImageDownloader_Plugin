@@ -134,8 +134,6 @@ export const renderTaskStatusBadge = (task: TaskItem): string => {
             return '<span class="bb-badge bb-badge-error">失败</span>';
         case 'cancelled':
             return '<span class="bb-badge">已取消</span>';
-        case 'interrupted':
-            return '<span class="bb-badge bb-badge-warn" title="页面刷新或关闭导致状态未确认，未自动重新下载">已中断/待确认</span>';
         default:
             return `<span class="bb-badge">${escapeHtml(task.status)}</span>`;
     }

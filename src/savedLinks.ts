@@ -541,7 +541,7 @@ class SavedLinksManager {
             items[idx] = {
                 ...current,
                 preheatError: result.error,
-                preheatState: 'failed'
+                preheatState: result.state
             };
         } else {
             items[idx] = {

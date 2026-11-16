@@ -65,7 +65,9 @@ test('Task queue deduplication prevents repeated active tasks', async () => {
     await taskQueue.processQueue();
 });
 
-test('Page reload recovery marks running tasks as interrupted rather than blind completion', async () => {
+test('Page reload recovery confirms stale tasks before marking interruption', async t => {
+    let now = Date.now();
+    t.mock.method(Date, 'now', () => now);
     storage.saveSettings({
         serverToken: 'token',
         serverUrl: 'https://server.com/api'
@@ -93,16 +95,19 @@ test('Page reload recovery marks running tasks as interrupted rather than blind 
                 url: 'https://s3.example.com/1.jpg'
             }
         ],
-        status: 'running'
+        status: 'running',
+        updatedAt: new Date(now - 120000).toISOString()
     };
     storage.setTasks(all);
 
     // New page load initializes and runs taskQueue.recoverInterruptedTasks()
+    assert.equal(taskQueue.recoverInterruptedTasks(), 0);
+    now += 2001;
     const recovered = taskQueue.recoverInterruptedTasks();
     assert.equal(recovered, 1);
 
     const after = taskQueue.getTaskById(task.id);
-    assert.equal(after?.status, 'interrupted');
+    assert.equal(after?.status, 'failed');
     assert.ok(after?.message.includes('中断'));
-    assert.equal(after?.mediaSubTasks[0].status, 'interrupted');
+    assert.equal(after?.mediaSubTasks[0].status, 'failed');
 });

@@ -176,13 +176,7 @@ export interface MediaSubTask {
     isLiveCover?: boolean;
     isLiveVideo?: boolean;
     pairIndex?: number; // 实况所属成对组编号
-    status:
-        | 'pending'
-        | 'running'
-        | 'completed'
-        | 'failed'
-        | 'cancelled'
-        | 'interrupted';
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
     progressPercent?: number;
     error?: string;
 }
@@ -192,12 +186,7 @@ export type TaskType = 'save' | 'preheat' | 'download' | 'sync';
 
 /** 任务生命周期状态 */
 export type TaskStatus =
-    | 'pending'
-    | 'running'
-    | 'completed'
-    | 'failed'
-    | 'cancelled'
-    | 'interrupted';
+    'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /** 统一调度任务模型 */
 export interface TaskItem {
