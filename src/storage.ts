@@ -35,6 +35,8 @@ class StorageManager {
     private listeners = new Set<StateChangeCallback>();
     private writeQueue: Promise<unknown> = Promise.resolve();
     private broadcastChannel: BroadcastChannel | null = null;
+    private taskListenerKey = '';
+    private taskListenerId: string | number | undefined;
 
     constructor() {
         this.initCrossTabSync();
@@ -308,10 +310,21 @@ class StorageManager {
     // 本地任务队列持久化操作 (按服务端空间隔离)
 
     public getTasks(namespace?: string): TaskItem[] {
-        const items = getGmBridge().getValue<TaskItem[]>(
-            this.nsKey('tasks', namespace),
-            []
-        );
+        const key = this.nsKey('tasks', namespace);
+        if (!namespace && this.taskListenerKey !== key) {
+            const bridge = getGmBridge();
+            if (this.taskListenerId !== undefined) {
+                bridge.removeValueChangeListener(this.taskListenerId);
+            }
+            this.taskListenerKey = key;
+            this.taskListenerId = bridge.addValueChangeListener(
+                key,
+                (...[, , , remote]) => {
+                    if (remote) this.emitChange('tasks');
+                }
+            );
+        }
+        const items = getGmBridge().getValue<TaskItem[]>(key, []);
         return Array.isArray(items) ? items : [];
     }
 

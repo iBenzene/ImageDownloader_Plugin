@@ -52,6 +52,55 @@ export class BenbenPluginUI {
     private savedKeyword = '';
     private historyKeyword = '';
     private taskFilter: TaskType | 'all' = 'all';
+    private onlyUnresolvedTasks = false;
+    private dismissedFailureIds = new Set<string>();
+
+    private failureKey(
+        task: ReturnType<typeof taskQueue.getTasks>[number]
+    ): string {
+        return `${storage.getActiveNamespace()}:${task.id}:${task.downloadFailureId || task.createdAt}`;
+    }
+
+    private renderFailureBadge(): string {
+        const count = taskQueue.getUnresolvedTasks().length;
+        return count
+            ? `<span class="bb-failure-count" aria-label="${count} 个任务待处理">${count > 99 ? '99+' : count}</span>`
+            : '';
+    }
+
+    private renderFailureNotice(): string {
+        const tasks = taskQueue.getUnresolvedTasks();
+        if (!tasks.length || this.isPanelOpen) return '';
+        const showToast = tasks.some(
+            task => !this.dismissedFailureIds.has(this.failureKey(task))
+        );
+        const downloadCount = tasks.filter(
+            task => task.type === 'download'
+        ).length;
+        const preheatCount = tasks.length - downloadCount;
+        const taskLabel =
+            downloadCount === 0
+                ? '预热任务'
+                : preheatCount === 0
+                  ? '下载任务'
+                  : '任务';
+        const detail =
+            downloadCount && preheatCount
+                ? `下载失败 ${downloadCount} 个，预热失败 ${preheatCount} 个`
+                : `${downloadCount ? '下载' : '预热'}未完成，请查看详情后重试。`;
+        return showToast
+            ? `<div class="bb-failure-toast" role="alert">
+                <span class="bb-failure-icon" aria-hidden="true">!</span>
+                <div><strong>${tasks.length} 个${taskLabel}失败</strong>
+                <div class="bb-failure-detail">${detail}</div>
+                <div class="bb-failure-actions">
+                  <button type="button" class="bb-btn bb-btn-primary bb-btn-sm" data-action="view-task-failures">查看详情</button>
+                  <button type="button" class="bb-btn bb-btn-sm" data-action="dismiss-failure-toast">稍后处理</button>
+                </div></div>
+                <button type="button" class="bb-icon-btn" data-action="dismiss-failure-toast" aria-label="收起提醒">✕</button>
+              </div>`
+            : `<button type="button" class="bb-btn bb-failure-reminder" data-action="view-task-failures">任务待处理 ${this.renderFailureBadge()}</button>`;
+    }
     private logKeyword = '';
     private showBatchInput = false;
     private batchInputText = '';
@@ -251,6 +300,9 @@ export class BenbenPluginUI {
     }
 
     private render(): void {
+        if (!taskQueue.getUnresolvedTasks().length) {
+            this.onlyUnresolvedTasks = false;
+        }
         if (!this.shadowRoot) {
             return;
         }
@@ -276,6 +328,7 @@ export class BenbenPluginUI {
 
         container.innerHTML = `
       ${entryBarHtml}
+      ${this.renderFailureNotice()}
       <div class="bb-backdrop ${this.isPanelOpen ? 'is-open' : ''}" data-action="close-panel"></div>
       ${panelHtml}
     `;
@@ -359,7 +412,7 @@ export class BenbenPluginUI {
           ${secondaryLabel}
         </button>
         <button type="button" class="bb-btn bb-btn-sm" data-action="open-panel" title="打开客户端面板">
-          更多
+          更多 ${this.renderFailureBadge()}
         </button>
         <span class="bb-entry-status ${statusClass}" title="${escapeHtml(statusMsg)}">
           ${escapeHtml(statusMsg)}
@@ -435,11 +488,12 @@ export class BenbenPluginUI {
 
         <nav class="bb-nav-tabs">
           <button type="button" class="bb-tab-btn ${savedAct}" data-action="nav-tab" data-tab="saved">收藏</button>
-          <button type="button" class="bb-tab-btn ${tasksAct}" data-action="nav-tab" data-tab="tasks">任务</button>
+          <button type="button" class="bb-tab-btn ${tasksAct}" data-action="nav-tab" data-tab="tasks">任务 ${this.renderFailureBadge()}</button>
           <button type="button" class="bb-tab-btn ${historyAct}" data-action="nav-tab" data-tab="history">历史</button>
         </nav>
 
         <div class="bb-panel-body">
+          ${taskQueue.getUnresolvedTasks().length ? `<div class="bb-failure-banner"><span>${taskQueue.getUnresolvedTasks().length} 个任务待处理</span>${this.activeTab === 'tasks' && this.onlyUnresolvedTasks ? '<button type="button" class="bb-btn bb-btn-sm" data-action="show-all-tasks">全部任务</button>' : '<button type="button" class="bb-btn bb-btn-sm" data-action="view-task-failures">查看</button>'}</div>` : ''}
           ${this.confirmationModal ? this.renderConfirmationModal() : ''}
           ${this.duplicatePrompt ? this.renderDuplicatePrompt() : ''}
           ${contentHtml}
@@ -621,7 +675,10 @@ export class BenbenPluginUI {
     }
 
     private renderTasksTab(): string {
-        const tasks = taskQueue.getTasks(this.taskFilter);
+        const unresolved = taskQueue.getUnresolvedTasks();
+        const tasks = this.onlyUnresolvedTasks
+            ? unresolved
+            : taskQueue.getTasks(this.taskFilter);
         const cardsHtml =
             tasks.length === 0
                 ? '<div class="bb-empty">暂无任务</div>'
@@ -698,6 +755,7 @@ export class BenbenPluginUI {
                       ${reExtractBtn}
                       ${retryBtn}
                       ${cancelBtn}
+                      ${unresolved.some(item => item.id === task.id) ? `<button type="button" class="bb-btn bb-btn-sm" data-action="ignore-task-failure" data-id="${task.id}">忽略</button>` : ''}
                       <button type="button" class="bb-btn bb-btn-sm"
                         data-action="remove-task" data-id="${task.id}">移除</button>
                     </div>
@@ -709,7 +767,7 @@ export class BenbenPluginUI {
 
         return `
       <div class="bb-toolbar">
-        <select class="bb-select" data-input="task-filter">
+        <select class="bb-select" data-input="task-filter" ${this.onlyUnresolvedTasks ? 'hidden' : ''}>
           <option value="all" ${this.taskFilter === 'all' ? 'selected' : ''}>全部类型</option>
           <option value="download" ${this.taskFilter === 'download' ? 'selected' : ''}>下载任务</option>
           <option value="preheat" ${this.taskFilter === 'preheat' ? 'selected' : ''}>预热任务</option>
@@ -929,6 +987,29 @@ export class BenbenPluginUI {
         target: HTMLElement
     ): Promise<void> {
         if (!action) {
+            return;
+        }
+
+        if (action === 'dismiss-failure-toast') {
+            taskQueue.getUnresolvedTasks().forEach(task => {
+                this.dismissedFailureIds.add(this.failureKey(task));
+            });
+            this.render();
+            return;
+        }
+        if (action === 'view-task-failures') {
+            this.onlyUnresolvedTasks = true;
+            this.openPanel('tasks');
+            return;
+        }
+        if (action === 'show-all-tasks') {
+            this.onlyUnresolvedTasks = false;
+            this.render();
+            return;
+        }
+        if (action === 'ignore-task-failure') {
+            const id = target.getAttribute('data-id');
+            if (id) taskQueue.ignoreFailure(id);
             return;
         }
 

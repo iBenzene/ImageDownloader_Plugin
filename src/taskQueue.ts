@@ -169,6 +169,21 @@ class TaskQueueManager {
         return storage.getTasks().find(t => isSameId(t.id, id));
     }
 
+    public getUnresolvedTasks(): TaskItem[] {
+        return storage.getTasks().filter(t => this.needsAttention(t));
+    }
+
+    private needsAttention(task: TaskItem): boolean {
+        return (
+            (task.type === 'download' || task.type === 'preheat') &&
+            (task.downloadFailurePending ?? task.status === 'failed')
+        );
+    }
+
+    public ignoreFailure(taskId: string): void {
+        this.updateTaskState(taskId, () => ({ downloadFailurePending: false }));
+    }
+
     /**
      * 查询指定链接是否处于待执行或正在执行的任务中
      * 用于页面按钮与列表项的状态防抖显示
@@ -406,6 +421,7 @@ class TaskQueueManager {
 
         tasks[idx] = {
             ...target,
+            downloadFailurePending: this.needsAttention(target),
             error: undefined,
             forceReExtract: options?.forceReExtract ?? target.forceReExtract,
             mediaSubTasks: keepCompletedSubTasks
@@ -438,7 +454,9 @@ class TaskQueueManager {
     public clearFinishedTasks(): number {
         const tasks = storage.getTasks();
         const remaining = tasks.filter(
-            t => t.status !== 'completed' && t.status !== 'cancelled'
+            t =>
+                this.needsAttention(t) ||
+                (t.status !== 'completed' && t.status !== 'cancelled')
         );
         const removedCount = tasks.length - remaining.length;
         if (removedCount > 0) {
@@ -530,6 +548,14 @@ class TaskQueueManager {
             return null;
         }
         const patch = updater(tasks[idx]);
+        if (tasks[idx].type === 'download' || tasks[idx].type === 'preheat') {
+            if (patch.status === 'failed' && tasks[idx].status !== 'failed') {
+                patch.downloadFailurePending = true;
+                patch.downloadFailureId = generateUUID();
+            } else if (patch.status === 'completed') {
+                patch.downloadFailurePending = false;
+            }
+        }
         tasks[idx] = {
             ...tasks[idx],
             ...patch,
@@ -724,10 +750,16 @@ class TaskQueueManager {
             return tasks;
         }
         const active = tasks.filter(
-            t => t.status === 'pending' || t.status === 'running'
+            t =>
+                t.status === 'pending' ||
+                t.status === 'running' ||
+                this.needsAttention(t)
         );
         const inactive = tasks.filter(
-            t => t.status !== 'pending' && t.status !== 'running'
+            t =>
+                t.status !== 'pending' &&
+                t.status !== 'running' &&
+                !this.needsAttention(t)
         );
         return [
             ...active,

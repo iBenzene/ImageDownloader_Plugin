@@ -6,6 +6,70 @@
  */
 
 export const SHADOW_STYLES = `
+.bb-failure-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--bb-danger);
+    color: var(--bb-bg);
+    font-size: 11px;
+    line-height: 1;
+}
+.bb-failure-toast, .bb-failure-reminder {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 2147483641;
+}
+.bb-failure-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    padding: 18px;
+    border: 1px solid var(--bb-border);
+    border-left: 4px solid var(--bb-danger);
+    border-radius: 10px;
+    background: var(--bb-bg-elevated);
+    color: var(--bb-text);
+    box-shadow: var(--bb-shadow-sm);
+}
+.bb-failure-toast strong { font-size: 14px; }
+.bb-failure-detail {
+    margin-top: 6px;
+    color: var(--bb-text-secondary);
+    font-size: 12px;
+}
+.bb-failure-toast > .bb-icon-btn { margin-left: auto; }
+.bb-failure-icon {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--bb-danger-soft);
+    color: var(--bb-danger);
+    font-weight: 600;
+}
+.bb-failure-actions { display: flex; gap: 8px; margin-top: 12px; }
+.bb-failure-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bb-danger-soft);
+    color: var(--bb-danger);
+}
 :host {
     all: initial;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",

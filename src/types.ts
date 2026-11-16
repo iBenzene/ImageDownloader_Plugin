@@ -201,6 +201,9 @@ export type TaskStatus =
 
 /** 统一调度任务模型 */
 export interface TaskItem {
+    /** 下载与预热共用失败提醒状态, 保留原字段名以兼容已保存的处理结果 */
+    downloadFailurePending?: boolean;
+    downloadFailureId?: string;
     identityCheckIncomplete?: boolean;
     id: string;
     type: TaskType;
